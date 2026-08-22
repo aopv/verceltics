@@ -601,9 +601,7 @@ struct CloudflareDashboardView: View {
                             }
                         }
                         .frame(width: 44, height: 44)
-                        .neoControlFrame()
                     }
-                    .buttonBorderShape(.roundedRectangle(radius: AppTheme.controlRadius))
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing Cloudflare" : "Refresh Cloudflare")
                     .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)

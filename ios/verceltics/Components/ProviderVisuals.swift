@@ -301,30 +301,6 @@ struct NativeGlassSurfaceModifier: ViewModifier {
     }
 }
 
-struct NeoControlFrameModifier: ViewModifier {
-    let cornerRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
-        content
-            .overlay {
-                shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
-            }
-            .background {
-                ZStack {
-                    shape
-                        .fill(AppTheme.hardShadow)
-                        .offset(x: 2, y: 3)
-                    shape
-                        .fill(Color.black)
-                        .blendMode(.destinationOut)
-                }
-                .compositingGroup()
-            }
-    }
-}
-
 extension View {
     func appSurface(cornerRadius: CGFloat = AppTheme.panelRadius, raised: Bool = false) -> some View {
         modifier(AppSurfaceModifier(cornerRadius: cornerRadius, raised: raised))
@@ -341,10 +317,6 @@ extension View {
                 isInteractive: isInteractive
             )
         )
-    }
-
-    func neoControlFrame(cornerRadius: CGFloat = AppTheme.controlRadius) -> some View {
-        modifier(NeoControlFrameModifier(cornerRadius: cornerRadius))
     }
 
     func appContentWidth(

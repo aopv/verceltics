@@ -55,12 +55,10 @@ struct ProviderAccountMenu: View {
             }
             .frame(width: 56, height: 44)
             .contentShape(Rectangle())
-            .neoControlFrame()
             .accessibilityLabel("Switch connected account")
             .accessibilityValue(authManager.activeAccount?.name ?? "No active account")
         }
         .tint(AppTheme.textPrimary)
-        .buttonBorderShape(.roundedRectangle(radius: AppTheme.controlRadius))
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .hosting)
                 .presentationSizing(.page)

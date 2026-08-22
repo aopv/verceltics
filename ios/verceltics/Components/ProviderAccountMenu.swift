@@ -53,12 +53,14 @@ struct ProviderAccountMenu: View {
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(AppTheme.textTertiary)
             }
-            .frame(width: 44, height: 44)
+            .frame(width: 56, height: 44)
             .contentShape(Rectangle())
+            .neoControlFrame()
             .accessibilityLabel("Switch connected account")
             .accessibilityValue(authManager.activeAccount?.name ?? "No active account")
         }
         .tint(AppTheme.textPrimary)
+        .buttonBorderShape(.roundedRectangle(radius: AppTheme.controlRadius))
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .hosting)
                 .presentationSizing(.page)
@@ -142,7 +144,7 @@ struct ProviderAccountMenu: View {
             .frame(width: 22, height: 22)
             .clipShape(Circle())
         } else if let provider = account?.provider {
-            ProviderMark(provider: provider, size: 23, monochrome: true)
+            ProviderMark(provider: provider, size: 23)
         } else {
             Image(systemName: "server.rack")
                 .font(.system(size: 13, weight: .semibold))

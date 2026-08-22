@@ -664,7 +664,7 @@ private struct LiquidGlassSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
-        content.nativeGlassSurface(cornerRadius: cornerRadius)
+        content.nativeGlassSurface(cornerRadius: cornerRadius, isInteractive: true)
     }
 }
 

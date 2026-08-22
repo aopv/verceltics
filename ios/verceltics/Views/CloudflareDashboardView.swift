@@ -484,7 +484,7 @@ struct CloudflareDashboardView: View {
     @Environment(PaywallManager.self) private var paywallManager
     @State private var viewModel: CloudflareDashboardViewModel
     @State private var searchText = ""
-    @State private var isSearching = false
+    @FocusState private var isSearchFocused: Bool
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<CloudflareProRoute>()
     @State private var navigationRoute: CloudflareProRoute?
@@ -570,10 +570,16 @@ struct CloudflareDashboardView: View {
             }
             .navigationTitle("Cloudflare")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search Cloudflare")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()
+                }
+                ToolbarItem(placement: .principal) {
+                    Text("Cloudflare")
+                        .font(AppTheme.displayFont(.title))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -582,11 +588,22 @@ struct CloudflareDashboardView: View {
                         }
                         Task { await viewModel.refresh() }
                     } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .rotationEffect(.degrees(refreshSpin))
+                        Group {
+                            if viewModel.isRefreshing {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(AppTheme.textPrimary)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 16, weight: .black))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                    .rotationEffect(.degrees(refreshSpin))
+                            }
+                        }
+                        .frame(width: 44, height: 44)
+                        .neoControlFrame()
                     }
+                    .buttonBorderShape(.roundedRectangle(radius: AppTheme.controlRadius))
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing Cloudflare" : "Refresh Cloudflare")
                     .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
@@ -614,10 +631,10 @@ struct CloudflareDashboardView: View {
                 if let selectedID { persistedAccountID = selectedID }
             }
             .onAppear {
-                if startWithSearch { isSearching = true }
+                if startWithSearch { focusSearchField() }
             }
             .onChange(of: searchRequestID) { _, _ in
-                isSearching = true
+                focusSearchField()
             }
             .onReceive(NotificationCenter.default.publisher(for: .cloudflareDataDidChange)) { notification in
                 guard notification.object as? String == credentialCacheScope,
@@ -662,58 +679,108 @@ struct CloudflareDashboardView: View {
     }
 
     private var dashboardContent: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                if let account = viewModel.selectedAccount {
-                    accountHeader(account)
-                }
+        VStack(spacing: 0) {
+            cloudflareSearchField
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.top, 16)
+                .padding(.bottom, 14)
+                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
 
-                if let error = authManager.error {
-                    AppFeedbackBanner(
-                        title: "Saved account change failed",
-                        message: error,
-                        icon: "lock.trianglebadge.exclamationmark.fill",
-                        tint: AppTheme.danger
-                    )
-                }
-
-                if let error = viewModel.error {
-                    AppFeedbackBanner(
-                        title: "Cloudflare refresh failed",
-                        message: error,
-                        tint: AppTheme.warning,
-                        actionTitle: "Retry"
-                    ) {
-                        Task { await viewModel.refresh() }
+            ScrollView {
+                VStack(spacing: 18) {
+                    if let account = viewModel.selectedAccount {
+                        accountHeader(account)
                     }
+
+                    if let error = authManager.error {
+                        AppFeedbackBanner(
+                            title: "Saved account change failed",
+                            message: error,
+                            icon: "lock.trianglebadge.exclamationmark.fill",
+                            tint: AppTheme.danger
+                        )
+                    }
+
+                    if let error = viewModel.error {
+                        AppFeedbackBanner(
+                            title: "Cloudflare refresh failed",
+                            message: error,
+                            tint: AppTheme.warning,
+                            actionTitle: "Retry"
+                        ) {
+                            Task { await viewModel.refresh() }
+                        }
+                    }
+
+                    CloudflareWriteNotice()
+
+                    if !viewModel.sectionWarnings.isEmpty {
+                        sectionWarningCard
+                    }
+
+                    if !searchText.isEmpty && !hasSearchResults {
+                        CloudflareSearchEmptyView(searchText: searchText)
+                    } else {
+                        resourceSections
+                    }
+
+                    advancedTools
                 }
-
-                CloudflareWriteNotice()
-
-                if !viewModel.sectionWarnings.isEmpty {
-                    sectionWarningCard
-                }
-
-                if !searchText.isEmpty && !hasSearchResults {
-                    CloudflareSearchEmptyView(searchText: searchText)
-                } else {
-                    resourceSections
-                }
-
-                advancedTools
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.top, 4)
+                .padding(.bottom, 28)
+                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
-            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-            .padding(.top, 16)
-            .padding(.bottom, 28)
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+            .refreshable { await viewModel.refresh() }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .refreshable { await viewModel.refresh() }
-        .overlay(alignment: .top) {
-            if viewModel.isRefreshing {
-                ProgressView()
-                    .tint(CloudflareStyle.orange)
-                    .padding(.top, 6)
+    }
+
+    private var cloudflareSearchField: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 21, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .accessibilityHidden(true)
+
+            TextField("Search Cloudflare", text: $searchText)
+                .font(.body)
+                .foregroundStyle(AppTheme.textPrimary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isSearchFocused)
+                .onSubmit { isSearchFocused = false }
+                .accessibilityLabel("Search Cloudflare")
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear Cloudflare search")
             }
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, searchText.isEmpty ? 16 : 4)
+        .frame(minHeight: 54)
+        .contentShape(Rectangle())
+        .onTapGesture { isSearchFocused = true }
+        .nativeGlassSurface(
+            cornerRadius: AppTheme.controlRadius,
+            isInteractive: true
+        )
+    }
+
+    private func focusSearchField() {
+        Task { @MainActor in
+            await Task.yield()
+            isSearchFocused = true
         }
     }
 
@@ -761,19 +828,18 @@ struct CloudflareDashboardView: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
-                        AppIconTile(icon: "building.2.fill", tint: CloudflareStyle.orange, size: 30)
+                        CloudflareInkTile(icon: "building.2.fill", size: 30)
                         Text("Cloudflare account")
                             .font(AppTheme.displayFont(.caption))
-                            .textCase(.uppercase)
                             .foregroundStyle(AppTheme.textSecondary)
                         Spacer()
                         Text(account.name)
                             .font(.footnote.weight(.bold))
                             .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(AppTheme.textTertiary)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundStyle(AppTheme.textPrimary)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -801,15 +867,17 @@ struct CloudflareDashboardView: View {
                         icon: "globe",
                         title: zone.name,
                         subtitle: zoneSubtitle(zone),
-                        tint: statusColor(zone.status)
+                        tint: statusIconColor(zone.status)
                     ) {
                         HStack(spacing: 8) {
                             if let status = zone.status {
-                                CloudflareStatusPill(text: status.uppercased(), color: statusColor(status))
+                                CloudflareStatusPill(
+                                    text: status.uppercased(),
+                                    color: statusColor(status),
+                                    fillColor: statusFill(status)
+                                )
                             }
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(AppTheme.textTertiary)
+                            CloudflareChevron()
                         }
                     }
                 }
@@ -886,7 +954,7 @@ struct CloudflareDashboardView: View {
     ) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon, count: count)
-            Divider().overlay(AppTheme.divider)
+            Divider().overlay(AppTheme.inkRule)
             if count == 0 {
                 CloudflareEmptySection(icon: icon, title: emptyTitle, message: emptyMessage)
             } else {
@@ -920,14 +988,13 @@ struct CloudflareDashboardView: View {
             }
         }
         .padding(16)
-        .background(CloudflareStyle.amber.opacity(0.14))
         .appSurface()
     }
 
     private var advancedTools: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Advanced", icon: "terminal.fill")
-            Divider().overlay(AppTheme.divider)
+            Divider().overlay(AppTheme.inkRule)
 
             if viewModel.api != nil {
                 if let accountID = viewModel.selectedAccountID,
@@ -944,7 +1011,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
+                    Divider().overlay(AppTheme.inkRule).padding(.leading, 64)
 
                     Button {
                         request(.graphQL(accountID: accountID))
@@ -958,7 +1025,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
+                    Divider().overlay(AppTheme.inkRule).padding(.leading, 64)
 
                     Button {
                         request(.productCenter(accountID: accountID))
@@ -972,7 +1039,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
+                    Divider().overlay(AppTheme.inkRule).padding(.leading, 64)
 
                     Button {
                         request(.storage(accountID: accountID))
@@ -988,7 +1055,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
+                    Divider().overlay(AppTheme.inkRule).padding(.leading, 64)
                 }
 
                 Button {
@@ -1145,8 +1212,7 @@ struct CloudflareDashboardView: View {
     private func rowDivider(unlessLast: Bool) -> some View {
         if unlessLast {
             Divider()
-                .overlay(AppTheme.divider)
-                .padding(.leading, 64)
+                .overlay(AppTheme.inkRule)
         }
     }
 
@@ -1179,6 +1245,22 @@ struct CloudflareDashboardView: View {
         case "pending", "initializing", "building": CloudflareStyle.amber
         case "moved", "deactivated", "error", "failed": CloudflareStyle.red
         default: AppTheme.textSecondary
+        }
+    }
+
+    private func statusFill(_ status: String?) -> Color? {
+        switch status?.lowercased() {
+        case "active", "ready": CloudflareStyle.lime
+        default: nil
+        }
+    }
+
+    private func statusIconColor(_ status: String?) -> Color {
+        switch status?.lowercased() {
+        case "active", "ready": CloudflareStyle.lime
+        case "pending", "initializing", "building": CloudflareStyle.amber
+        case "moved", "deactivated", "error", "failed": CloudflareStyle.red
+        default: CloudflareStyle.paper
         }
     }
 }

@@ -1,12 +1,34 @@
 import SwiftUI
 
 enum CloudflareStyle {
+    static let paper = Color(red: 1.0, green: 0.985, blue: 0.94)
     static let orange = Color(red: 1.00, green: 0.39, blue: 0.035)
     static let orangeLight = Color(red: 1.00, green: 0.56, blue: 0.16)
     static let amber = Color(red: 1.00, green: 0.72, blue: 0.18)
+    static let noticeYellow = Color(red: 1.00, green: 0.83, blue: 0.16)
     static let lime = Color(red: 0.47, green: 0.90, blue: 0.25)
     static let green = AppTheme.success
     static let red = AppTheme.danger
+}
+
+struct CloudflareInkTile: View {
+    let icon: String
+    var glyphTint: Color = CloudflareStyle.paper
+    var size: CGFloat = 36
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: size * 0.40, weight: .black))
+            .foregroundStyle(glyphTint)
+            .frame(width: size, height: size)
+            .background(AppTheme.signalForeground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
+            }
+            .accessibilityHidden(true)
+    }
 }
 
 struct CloudflarePanelModifier: ViewModifier {
@@ -59,8 +81,8 @@ struct CloudflareSectionHeader: View {
             } else {
                 HStack(spacing: 8) {
                     titleLabel
-                    countBadge
                     Spacer(minLength: 8)
+                    countBadge
                     actionButton
                 }
             }
@@ -71,7 +93,7 @@ struct CloudflareSectionHeader: View {
 
     private var titleLabel: some View {
         HStack(alignment: .top, spacing: 8) {
-            AppIconTile(icon: icon, tint: CloudflareStyle.orange, size: 28)
+            CloudflareInkTile(icon: icon, size: 28)
 
             Text(title)
                 .font(AppTheme.displayFont(.title3))
@@ -110,6 +132,8 @@ struct CloudflareSectionHeader: View {
 }
 
 struct CloudflareResourceRow<Trailing: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let icon: String
     let title: String
     let subtitle: String?
@@ -117,39 +141,56 @@ struct CloudflareResourceRow<Trailing: View>: View {
     @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {
-        HStack(spacing: 12) {
-            AppIconTile(icon: icon, tint: tint)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) {
+                    identity
+                    HStack {
+                        Spacer(minLength: 48)
+                        trailing()
+                    }
+                }
+            } else {
+                HStack(spacing: 12) {
+                    identity
+                    Spacer(minLength: 8)
+                    trailing()
                 }
             }
-
-            Spacer(minLength: 8)
-            trailing()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
         .frame(minHeight: 64)
         .contentShape(Rectangle())
     }
+
+    private var identity: some View {
+        HStack(alignment: .top, spacing: 12) {
+            CloudflareInkTile(icon: icon, glyphTint: tint)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(AppTheme.displayFont(.headline))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textPrimary.opacity(0.76))
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+    }
 }
 
 struct CloudflareChevron: View {
     var body: some View {
         Image(systemName: "chevron.right")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(AppTheme.textTertiary)
+            .font(.caption.weight(.black))
+            .foregroundStyle(AppTheme.textPrimary)
     }
 }
 
@@ -164,24 +205,31 @@ extension CloudflareResourceRow where Trailing == CloudflareChevron {
 struct CloudflareStatusPill: View {
     let text: String
     var color: Color
+    var fillColor: Color?
+
+    init(text: String, color: Color, fillColor: Color? = nil) {
+        self.text = text
+        self.color = color
+        self.fillColor = fillColor
+    }
 
     var body: some View {
         HStack(spacing: 5) {
             Circle()
-                .fill(color)
+                .fill(fillColor == nil ? color : AppTheme.signalForeground)
                 .frame(width: 5, height: 5)
             Text(text)
                 .font(AppTheme.displayFont(.caption2))
                 .lineLimit(1)
         }
-        .foregroundStyle(AppTheme.textPrimary)
+        .foregroundStyle(fillColor == nil ? AppTheme.textPrimary : AppTheme.signalForeground)
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
-        .background(color.opacity(0.16))
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .background(fillColor ?? color.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .strokeBorder(color, lineWidth: 1.25)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .strokeBorder(fillColor == nil ? color : AppTheme.strokeStrong, lineWidth: 1.5)
         }
     }
 }
@@ -356,7 +404,7 @@ struct CloudflareEdgeHeader: View {
             Circle()
                 .fill(AppTheme.signalForeground)
                 .frame(width: 6, height: 6)
-            Text("CONNECTED")
+            Text("Connected")
                 .font(AppTheme.displayFont(.caption2))
                 .lineLimit(1)
         }
@@ -364,23 +412,24 @@ struct CloudflareEdgeHeader: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
         .background(CloudflareStyle.lime)
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .strokeBorder(AppTheme.signalForeground, lineWidth: 1.5)
         }
     }
 
-    private func edgeNode(value: Int, title: String, icon: String, emphasized: Bool = false) -> some View {
+    private func edgeNode(value: Int, title: String, icon _: String, emphasized: Bool = false) -> some View {
         VStack(spacing: 7) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.caption.weight(.bold))
-                Text(value.formatted())
-                    .font(AppTheme.displayFont(.title).monospacedDigit())
-            }
-            .foregroundStyle(AppTheme.signalForeground)
-            .minimumScaleFactor(0.65)
+            Text(value.formatted())
+                .font(AppTheme.displayFont(.largeTitle).monospacedDigit())
+                .foregroundStyle(AppTheme.signalForeground)
+                .minimumScaleFactor(0.65)
+
+            Rectangle()
+                .fill(AppTheme.signalForeground)
+                .frame(width: 54, height: 1.5)
+
             Text(title)
                 .font(AppTheme.displayFont(.caption))
                 .tracking(0.7)
@@ -392,12 +441,17 @@ struct CloudflareEdgeHeader: View {
         .background(
             emphasized
                 ? Color(red: 1.0, green: 0.985, blue: 0.94)
-                : Color.white.opacity(0.30)
+                : CloudflareStyle.orangeLight
         )
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .strokeBorder(AppTheme.signalForeground, lineWidth: 1.5)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(AppTheme.signalForeground)
+                .offset(x: 2, y: 3)
         }
     }
 
@@ -411,29 +465,35 @@ struct CloudflareWriteNotice: View {
                 .foregroundStyle(CloudflareStyle.amber)
                 .frame(width: 36, height: 36)
                 .background(AppTheme.signalForeground)
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text("Write access is guarded")
                     .font(AppTheme.displayFont(.headline))
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .foregroundStyle(AppTheme.signalForeground)
                 Text("Changes use the connected Cloudflare credential. Destructive actions always ask for confirmation.")
                     .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(AppTheme.signalForeground.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(CloudflareStyle.amber.opacity(0.42))
+        .background {
+            LinearGradient(
+                colors: [Color(red: 1.0, green: 0.89, blue: 0.25), CloudflareStyle.noticeYellow],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous)
-                .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
+                .strokeBorder(AppTheme.strokeStrong, lineWidth: 2)
         )
         .background {
             RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous)
-                .fill(AppTheme.shadowSoft)
-                .offset(x: 3, y: 3)
+                .fill(AppTheme.shadow)
+                .offset(x: 4, y: 4)
         }
     }
 }

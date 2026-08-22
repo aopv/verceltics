@@ -36,12 +36,12 @@ enum AppTheme {
         dark: UIColor(red: 0.54, green: 0.497, blue: 0.425, alpha: 1)
     )
     static let stroke = adaptive(
-        light: UIColor.black.withAlphaComponent(0.74),
-        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.52)
+        light: UIColor.black.withAlphaComponent(0.94),
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.72)
     )
     static let strokeStrong = adaptive(
-        light: UIColor.black.withAlphaComponent(0.94),
-        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.78)
+        light: UIColor.black,
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.90)
     )
     static let strokeSoft = adaptive(
         light: UIColor.black.withAlphaComponent(0.25),
@@ -51,8 +51,16 @@ enum AppTheme {
         light: UIColor.black.withAlphaComponent(0.32),
         dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.25)
     )
+    static let inkRule = adaptive(
+        light: UIColor.black.withAlphaComponent(0.78),
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.58)
+    )
     static let signal = adaptive(
         light: UIColor(red: 0.698, green: 0.227, blue: 0.0, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.52, blue: 0.19, alpha: 1)
+    )
+    static let navigationAccent = adaptive(
+        light: UIColor(red: 0.77, green: 0.205, blue: 0.0, alpha: 1),
         dark: UIColor(red: 1.0, green: 0.52, blue: 0.19, alpha: 1)
     )
     static let signalFill = adaptive(
@@ -76,12 +84,16 @@ enum AppTheme {
         dark: UIColor(red: 1.0, green: 0.36, blue: 0.39, alpha: 1)
     )
     static let shadow = adaptive(
-        light: UIColor.black.withAlphaComponent(0.72),
-        dark: UIColor.black.withAlphaComponent(0.86)
+        light: UIColor.black.withAlphaComponent(0.94),
+        dark: UIColor.black.withAlphaComponent(0.92)
     )
     static let shadowSoft = adaptive(
         light: UIColor.black.withAlphaComponent(0.42),
         dark: UIColor.black.withAlphaComponent(0.62)
+    )
+    static let hardShadow = adaptive(
+        light: UIColor.black.withAlphaComponent(0.80),
+        dark: UIColor(red: 0.34, green: 0.14, blue: 0.025, alpha: 0.88)
     )
     static let glassTint = adaptive(
         light: UIColor(red: 1.0, green: 0.97, blue: 0.90, alpha: 0.14),
@@ -96,9 +108,9 @@ enum AppTheme {
         dark: UIColor.white.withAlphaComponent(0.095)
     )
 
-    static let panelRadius: CGFloat = 9
-    static let controlRadius: CGFloat = 8
-    static let iconRadius: CGFloat = 7
+    static let panelRadius: CGFloat = 4
+    static let controlRadius: CGFloat = 4
+    static let iconRadius: CGFloat = 3
 
     static func displayFont(_ style: Font.TextStyle, weight: Font.Weight = .black) -> Font {
         .system(style, design: .default, weight: weight).width(.condensed)
@@ -186,13 +198,13 @@ struct AppSurfaceModifier: ViewModifier {
             .overlay {
                 shape.strokeBorder(
                     raised ? AppTheme.strokeStrong : AppTheme.stroke,
-                    lineWidth: raised ? 1.6 : 1.25
+                    lineWidth: raised ? 2 : 1.75
                 )
             }
             .background {
                 shape
-                    .fill(raised ? AppTheme.shadow : AppTheme.shadowSoft)
-                    .offset(x: raised ? 4 : 2.5, y: raised ? 4 : 2.5)
+                    .fill(raised ? AppTheme.shadow : AppTheme.hardShadow)
+                    .offset(x: raised ? 4 : 3, y: raised ? 4 : 3)
             }
     }
 }
@@ -213,7 +225,7 @@ struct ProviderSurfaceModifier: ViewModifier {
             }
             .clipShape(shape)
             .overlay {
-                shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 1.45)
+                shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 2)
             }
             .overlay(alignment: .leading) {
                 Rectangle()
@@ -222,33 +234,94 @@ struct ProviderSurfaceModifier: ViewModifier {
             }
             .background {
                 shape
-                    .fill(AppTheme.shadowSoft)
-                    .offset(x: 3, y: 3)
+                    .fill(AppTheme.hardShadow)
+                    .offset(x: 4, y: 4)
             }
     }
 }
 
 struct NativeGlassSurfaceModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     let cornerRadius: CGFloat
+    let isInteractive: Bool
 
     @ViewBuilder
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
         if #available(iOS 26.0, *) {
-            content
-                .glassEffect(
-                    .regular.tint(AppTheme.glassTint).interactive(),
-                    in: .rect(cornerRadius: cornerRadius)
-                )
+            if isInteractive {
+                content
+                    .glassEffect(
+                        .regular.tint(AppTheme.glassTint).interactive(),
+                        in: .rect(cornerRadius: cornerRadius)
+                    )
+                    .overlay { brandedGlassOutline(shape) }
+                    .background { brandedGlassShadow(shape) }
+            } else {
+                content
+                    .glassEffect(
+                        .regular.tint(AppTheme.glassTint),
+                        in: .rect(cornerRadius: cornerRadius)
+                    )
+                    .overlay { brandedGlassOutline(shape) }
+                    .background { brandedGlassShadow(shape) }
+            }
         } else {
             content
-                .background(.ultraThinMaterial)
-                .background(AppTheme.canvas.opacity(0.38))
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 0.5)
+                .background {
+                    if reduceTransparency {
+                        shape.fill(AppTheme.surface)
+                    } else {
+                        shape.fill(.ultraThinMaterial)
+                        shape.fill(AppTheme.canvas.opacity(0.38))
+                    }
                 }
+                .clipShape(shape)
+                .overlay { brandedGlassOutline(shape) }
+                .background { brandedGlassShadow(shape) }
         }
+    }
+
+    private func brandedGlassOutline(_ shape: RoundedRectangle) -> some View {
+        shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 1.75)
+    }
+
+    private func brandedGlassShadow(_ shape: RoundedRectangle) -> some View {
+        ZStack {
+            shape
+                .fill(AppTheme.hardShadow)
+                .offset(x: 3, y: 4)
+            shape
+                .fill(Color.black)
+                .blendMode(.destinationOut)
+        }
+        .compositingGroup()
+    }
+}
+
+struct NeoControlFrameModifier: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        content
+            .overlay {
+                shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
+            }
+            .background {
+                ZStack {
+                    shape
+                        .fill(AppTheme.hardShadow)
+                        .offset(x: 2, y: 3)
+                    shape
+                        .fill(Color.black)
+                        .blendMode(.destinationOut)
+                }
+                .compositingGroup()
+            }
     }
 }
 
@@ -261,8 +334,17 @@ extension View {
         modifier(ProviderSurfaceModifier(accent: accent, cornerRadius: cornerRadius))
     }
 
-    func nativeGlassSurface(cornerRadius: CGFloat) -> some View {
-        modifier(NativeGlassSurfaceModifier(cornerRadius: cornerRadius))
+    func nativeGlassSurface(cornerRadius: CGFloat, isInteractive: Bool = false) -> some View {
+        modifier(
+            NativeGlassSurfaceModifier(
+                cornerRadius: cornerRadius,
+                isInteractive: isInteractive
+            )
+        )
+    }
+
+    func neoControlFrame(cornerRadius: CGFloat = AppTheme.controlRadius) -> some View {
+        modifier(NeoControlFrameModifier(cornerRadius: cornerRadius))
     }
 
     func appContentWidth(

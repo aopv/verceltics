@@ -185,8 +185,8 @@ struct RegistrarConnectionView: View {
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 54)
                             .padding(.vertical, 4)
-                            .background(canConnect(provider) ? AppTheme.signal : AppTheme.surfaceRaised)
-                            .foregroundStyle(canConnect(provider) ? .white : AppTheme.textTertiary)
+                            .background(canConnect(provider) ? AppTheme.signalFill : AppTheme.surfaceRaised)
+                            .foregroundStyle(canConnect(provider) ? AppTheme.signalForeground : AppTheme.textTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .buttonStyle(PressScaleButtonStyle())

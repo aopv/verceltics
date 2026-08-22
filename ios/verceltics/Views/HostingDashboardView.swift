@@ -97,6 +97,7 @@ struct HostingDashboardView: View {
     @State private var navigationRoute: HostingProRoute?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(AuthManager.self) private var authManager
     @Environment(PaywallManager.self) private var paywallManager
 
@@ -250,10 +251,27 @@ struct HostingDashboardView: View {
     }
 
     private var accountCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if dynamicTypeSize.isAccessibilitySize {
+                accountIdentity
+                AppStatusBadge(text: "Connected", tone: .success)
+            } else {
+                HStack(spacing: 14) {
+                    accountIdentity
+                    Spacer()
+                    AppStatusBadge(text: "Connected", tone: .success)
+                }
+            }
+        }
+        .padding(18)
+        .providerSurface(accent: provider.accentColor)
+    }
+
+    private var accountIdentity: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(provider.accentColor.opacity(0.15))
+                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                    .fill(provider == .vercel ? AppTheme.surface : AppTheme.signalForeground)
                 if let avatar = account.avatarURL, let url = URL(string: avatar) {
                     AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
                         ProviderMark(provider: provider, size: 28)
@@ -263,36 +281,38 @@ struct HostingDashboardView: View {
                 }
             }
             .frame(width: 56, height: 56)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
-                    .font(.headline)
+                    .font(AppTheme.displayFont(.title3))
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 Text(account.email ?? provider.connectionSubtitle)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             }
-            Spacer()
-            AppStatusBadge(text: "Connected", tone: .success)
+            .layoutPriority(1)
         }
-        .padding(18)
-        .providerSurface(accent: provider.accentColor)
     }
 
     private var actionGrid: some View {
-        HStack(spacing: 10) {
-            Button {
-                request(.providerDashboard)
-            } label: {
-                dashboardAction(icon: "safari.fill", title: "Dashboard")
-            }
-            Button {
-                request(.completeAPI)
-            } label: {
-                dashboardAction(icon: "list.bullet.rectangle.fill", title: "Complete API")
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 10) {
+                    dashboardButton(route: .providerDashboard, icon: "safari.fill", title: "Dashboard")
+                    dashboardButton(route: .completeAPI, icon: "list.bullet.rectangle.fill", title: "Complete API")
+                }
+            } else {
+                HStack(spacing: 10) {
+                    dashboardButton(route: .providerDashboard, icon: "safari.fill", title: "Dashboard")
+                    dashboardButton(route: .completeAPI, icon: "list.bullet.rectangle.fill", title: "Complete API")
+                }
             }
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -300,14 +320,23 @@ struct HostingDashboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func dashboardButton(route: HostingProRoute, icon: String, title: String) -> some View {
+        Button {
+            request(route)
+        } label: {
+            dashboardAction(icon: icon, title: title)
+        }
+    }
+
     private func dashboardAction(icon: String, title: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .foregroundStyle(provider.accentColor)
-            Text(title).font(.subheadline.weight(.semibold))
+            Text(title).font(AppTheme.displayFont(.subheadline))
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 48)
+        .frame(minHeight: 48)
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
         .appSurface(raised: true)
     }
 
@@ -358,15 +387,10 @@ struct HostingDashboardView: View {
 
     private func resourceRow(_ resource: HostingResource) -> some View {
         HStack(spacing: 13) {
-            Image(systemName: resourceIcon(resource))
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(provider.accentColor)
-                .frame(width: 40, height: 40)
-                .background(provider.accentColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            AppIconTile(icon: resourceIcon(resource), tint: provider.accentColor, size: 40)
             VStack(alignment: .leading, spacing: 4) {
                 Text(resource.name)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(2)
                 Text([resource.kind, resource.region, resource.subtitle].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))

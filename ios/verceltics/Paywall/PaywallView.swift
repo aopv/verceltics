@@ -427,8 +427,8 @@ struct PaywallView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 54)
-                .background(selectedPackage != nil ? AppTheme.signal : AppTheme.surfaceRaised)
-                .foregroundStyle(selectedPackage != nil ? AppTheme.canvas : AppTheme.textTertiary)
+                .background(selectedPackage != nil ? AppTheme.signalFill : AppTheme.surfaceRaised)
+                .foregroundStyle(selectedPackage != nil ? AppTheme.signalForeground : AppTheme.textTertiary)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -522,7 +522,7 @@ private struct ProAccessScope: View {
         .appSurface()
         .overlay(alignment: .leading) {
             Capsule()
-                .fill(AppTheme.signal)
+                .fill(AppTheme.signalFill)
                 .frame(width: 2)
                 .padding(.vertical, 18)
                 .padding(.leading, 1)
@@ -585,7 +585,7 @@ private struct ProAccessScopeRow: View {
                 .contentTransition(.numericText())
 
             Circle()
-                .fill(AppTheme.signal)
+                .fill(AppTheme.signalFill)
                 .frame(width: 6, height: 6)
                 .scaleEffect(isRevealed ? 1 : 0.01)
                 .opacity(isRevealed ? 1 : 0)
@@ -673,7 +673,7 @@ struct PlanCard: View {
             }
             .overlay(alignment: .leading) {
                 Capsule()
-                    .fill(AppTheme.signal)
+                    .fill(AppTheme.signalFill)
                     .frame(width: 3)
                     .padding(.vertical, 13)
                     .padding(.leading, 1)

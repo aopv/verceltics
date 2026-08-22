@@ -110,7 +110,7 @@ const applicationJsonLd = {
   operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later",
   applicationCategory: "DeveloperApplication",
   applicationSubCategory: "Infrastructure monitoring and management",
-  softwareVersion: "2.0",
+  softwareVersion: "3.0",
   description: "Verceltics is a private native iPhone and iPad app for hosting, domains, analytics, search performance, speed, and uptime.",
   url: SITE_URL,
   downloadUrl: APP_STORE,
@@ -309,7 +309,7 @@ export default function Home() {
 
         <section className="closing-section">
           <div className="closing-copy">
-            <p>Verceltics 2.0 / iPhone + iPad / 27 direct connections</p>
+            <p>Verceltics 3.0 / iPhone + iPad / 27 direct connections</p>
             <h2>Production called.<br />You can answer from here.</h2>
           </div>
           <a className="closing-control" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>

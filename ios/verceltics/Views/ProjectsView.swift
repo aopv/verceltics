@@ -257,6 +257,7 @@ struct ProjectsView: View {
                     projectsList
                 }
             }
+            .navigationTitle("Vercel")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
             .toolbar {
@@ -485,7 +486,7 @@ struct ProjectCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 7) {
                         Text(project.name)
-                            .font(.headline)
+                            .font(AppTheme.displayFont(.headline))
                             .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
 
@@ -511,8 +512,8 @@ struct ProjectCard: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.textTertiary)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.textPrimary)
             }
 
             if let link = project.link, let org = link.org, let repo = link.repo {
@@ -671,6 +672,11 @@ struct ProjectIcon: View {
             }
         }
         .frame(width: 40, height: 40)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
+        }
         .task(id: domain) {
             loadedImage = nil
             didFail = false

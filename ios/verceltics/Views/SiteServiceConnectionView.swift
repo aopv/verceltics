@@ -342,8 +342,8 @@ struct SiteServiceConnectionView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 54)
-            .background(canConnect ? AppTheme.signal : AppTheme.surfaceRaised)
-            .foregroundStyle(canConnect ? .white : AppTheme.textTertiary)
+            .background(canConnect ? AppTheme.signalFill : AppTheme.surfaceRaised)
+            .foregroundStyle(canConnect ? AppTheme.signalForeground : AppTheme.textTertiary)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(PressScaleButtonStyle())

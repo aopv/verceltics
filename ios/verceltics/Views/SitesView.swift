@@ -8,6 +8,7 @@ private enum SiteProRoute: Hashable {
 struct SitesView: View {
     @Environment(SiteStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PaywallManager.self) private var paywallManager
 
@@ -302,20 +303,17 @@ struct SitesView: View {
         )
 
         return VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 13) {
-                SiteProviderIconTile(provider: account.provider, size: 48)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(account.provider.displayName)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
-                    Text(account.name)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    serviceIdentity(account)
+                    AppStatusBadge(text: status.text, tone: status.tone)
                 }
-                Spacer(minLength: 8)
-                AppStatusBadge(text: status.text, tone: status.tone)
+            } else {
+                HStack(alignment: .top, spacing: 13) {
+                    serviceIdentity(account)
+                    Spacer(minLength: 8)
+                    AppStatusBadge(text: status.text, tone: status.tone)
+                }
             }
 
             Text(account.provider.connectionSubtitle)
@@ -355,12 +353,29 @@ struct SitesView: View {
         .accessibilityHint("Open the selected \(account.provider.displayName) workspace")
     }
 
+    private func serviceIdentity(_ account: SiteIntegrationAccount) -> some View {
+        HStack(alignment: .top, spacing: 13) {
+            SiteProviderIconTile(provider: account.provider, size: 48)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(account.provider.displayName)
+                    .font(AppTheme.displayFont(.title3))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                Text(account.name)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+            }
+            .layoutPriority(1)
+        }
+    }
+
     private var addServiceCard: some View {
         HStack(spacing: 13) {
             AppIconTile(icon: "plus", tint: AppTheme.textSecondary, size: 42)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Add a site service")
-                    .font(.headline)
+                    .font(AppTheme.displayFont(.headline))
                     .foregroundStyle(AppTheme.textPrimary)
                 Text("Connect another source of site intelligence")
                     .font(.footnote)
@@ -386,7 +401,7 @@ struct SitesView: View {
                 SiteProviderIconTile(provider: resource.provider, size: 42)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(resource.name)
-                        .font(.headline)
+                        .font(AppTheme.displayFont(.headline))
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text(resource.status ?? resource.subtitle ?? "Connected")
@@ -424,11 +439,11 @@ struct SitesView: View {
     private func compactMetric(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .font(AppTheme.displayFont(.headline).monospacedDigit())
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
             Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
+                .font(AppTheme.displayFont(.caption2))
                 .tracking(0.4)
                 .foregroundStyle(AppTheme.textTertiary)
                 .lineLimit(1)
@@ -540,11 +555,11 @@ private struct SiteProviderIconTile: View {
     var body: some View {
         SiteProviderMark(provider: provider, size: size * 0.52)
             .frame(width: size, height: size)
-            .background(provider.accentColor.opacity(0.105))
+            .background(AppTheme.signalForeground)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                    .strokeBorder(provider.accentColor.opacity(0.12), lineWidth: 0.5)
+                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
             }
             .accessibilityHidden(true)
     }

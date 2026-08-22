@@ -174,10 +174,10 @@ struct CloudflareFullAPICatalogView: View {
                     Text(item.rawValue.uppercased())
                         .font(.caption.weight(.semibold))
                         .tracking(0.6)
-                        .foregroundStyle(filter == item ? .white : AppTheme.textSecondary)
+                        .foregroundStyle(filter == item ? AppTheme.signalForeground : AppTheme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 44)
-                        .background(filter == item ? AppTheme.signal : AppTheme.surfaceRaised)
+                        .background(filter == item ? AppTheme.signalFill : AppTheme.surfaceRaised)
                         .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                 }
                 .buttonStyle(.plain)

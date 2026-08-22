@@ -61,6 +61,7 @@ struct VercelticsApp: App {
             .environment(appearanceStore)
             .environment(registrarStore)
             .environment(siteStore)
+            .tint(AppTheme.signal)
             .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
             .task(id: firstLaunchMigrationState) {
                 guard paywallManager.hasCheckedEntitlements else { return }

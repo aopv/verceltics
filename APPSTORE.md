@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v2.0. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v3.0. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -77,18 +77,16 @@ Contact: ad13dtu@gmail.com
 Not affiliated with any supported hosting platform, registrar, or site-intelligence service.
 ```
 
-## What's New (v2.0)
+## What's New (v3.0)
 ```
-Verceltics 2.0 expands beyond Vercel.
+Verceltics 3.0 introduces a complete interface redesign.
 
-• Connect 27 integrations: 10 hosting platforms, 8 domain registrars, and 9 site services.
-• Start with a redesigned welcome and animated provider catalog.
-• Manage Cloudflare zones, DNS, Pages, Workers, storage, security, and analytics.
-• Open separate search, analytics, performance, and uptime dashboards in the new Sites workspace.
-• Browse guarded provider API catalogs for advanced read and write operations.
-• Switch hosting, registrar, and site-service accounts independently with device-only Keychain storage.
-• Detect the current public IPv4 for Namecheap ClientIp setup or explicitly copy it for Name.com's optional allowlist.
-• Browse connections and workspace lists for free, then dismiss or reopen the whole-stack Pro sheet when you choose a gated detail or provider tool.
+• A new Soft Neo Utility visual system makes dense infrastructure data easier to scan.
+• Redesigned hosting, registrar, site, analytics, connection, and provider-detail screens.
+• Clearer status badges, provider identity, account summaries, and guarded-action states.
+• Improved light and dark appearances, iPad layouts, and accessibility text-size reflow.
+• Native iOS navigation, search, and Liquid Glass controls remain familiar and responsive.
+• All 27 integrations and existing provider operations continue to work as before.
 ```
 
 ## Keywords (100 chars max)

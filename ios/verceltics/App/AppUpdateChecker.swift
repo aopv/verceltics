@@ -17,7 +17,7 @@ final class AppUpdateChecker {
     private var lastCheckedAt: Date?
 
     var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.0"
     }
 
     var isUpdateAvailable: Bool {

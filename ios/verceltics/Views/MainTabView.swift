@@ -94,7 +94,7 @@ struct MainTabView: View {
             .badge(appUpdateChecker.isUpdateAvailable ? Text("") : nil)
         }
         .tabViewStyle(.sidebarAdaptable)
-        .tint(AppTheme.textPrimary)
+        .tint(AppTheme.signal)
         .onChange(of: selectedTab) { _, newValue in
             if newValue == .search {
                 let workspace = PrimaryWorkspace.restored(from: lastPrimaryWorkspace)

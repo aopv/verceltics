@@ -131,10 +131,10 @@ struct ProviderFullAPICatalogView: View {
                             } label: {
                                 Text(tag)
                                     .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(selectedTag == tag ? .white : AppTheme.textSecondary)
+                                    .foregroundStyle(selectedTag == tag ? AppTheme.signalForeground : AppTheme.textSecondary)
                                     .padding(.horizontal, 13)
                                     .frame(minHeight: 44)
-                                    .background(selectedTag == tag ? AppTheme.signal : AppTheme.surfaceRaised)
+                                    .background(selectedTag == tag ? AppTheme.signalFill : AppTheme.surfaceRaised)
                                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -436,9 +436,9 @@ private struct ProviderAPIOperationView: View {
                             systemImage: operation.isMutation ? "exclamationmark.shield.fill" : "arrow.right"
                         )
                             .font(.body.weight(.semibold)).frame(maxWidth: .infinity).frame(height: 54)
-                            .background(AppTheme.signal).clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                            .background(AppTheme.signalFill).clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                     }
-                    .buttonStyle(PressScaleButtonStyle()).foregroundStyle(.white)
+                    .buttonStyle(PressScaleButtonStyle()).foregroundStyle(AppTheme.signalForeground)
                     .disabled(hasMissingRequiredParameters)
                     .opacity(hasMissingRequiredParameters ? 0.45 : 1)
                 }

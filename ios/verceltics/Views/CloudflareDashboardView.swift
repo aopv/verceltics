@@ -663,7 +663,7 @@ struct CloudflareDashboardView: View {
 
     private var dashboardContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 18) {
                 if let account = viewModel.selectedAccount {
                     accountHeader(account)
                 }
@@ -702,7 +702,9 @@ struct CloudflareDashboardView: View {
 
                 advancedTools
             }
-            .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 16)
+            .padding(.bottom, 28)
             .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
         .refreshable { await viewModel.refresh() }
@@ -759,15 +761,14 @@ struct CloudflareDashboardView: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "building.2.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(CloudflareStyle.orange)
+                        AppIconTile(icon: "building.2.fill", tint: CloudflareStyle.orange, size: 30)
                         Text("Cloudflare account")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(AppTheme.displayFont(.caption))
+                            .textCase(.uppercase)
                             .foregroundStyle(AppTheme.textSecondary)
                         Spacer()
                         Text(account.name)
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.footnote.weight(.bold))
                             .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
                         Image(systemName: "chevron.up.chevron.down")
@@ -775,13 +776,8 @@ struct CloudflareDashboardView: View {
                             .foregroundStyle(AppTheme.textTertiary)
                     }
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .background(AppTheme.surfaceRaised)
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
-                    )
+                    .padding(.vertical, 10)
+                    .appSurface(cornerRadius: AppTheme.controlRadius)
                 }
             }
         }
@@ -912,15 +908,20 @@ struct CloudflareDashboardView: View {
             }
             .padding(.top, 10)
         } label: {
-            Label(
-                "\(viewModel.sectionWarnings.count) product \(viewModel.sectionWarnings.count == 1 ? "issue" : "issues")",
-                systemImage: "exclamationmark.triangle.fill"
-            )
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(CloudflareStyle.amber)
+            HStack(spacing: 11) {
+                AppIconTile(
+                    icon: "exclamationmark.triangle.fill",
+                    tint: CloudflareStyle.amber,
+                    size: 34
+                )
+                Text("\(viewModel.sectionWarnings.count) product \(viewModel.sectionWarnings.count == 1 ? "issue" : "issues")")
+                    .font(AppTheme.displayFont(.headline))
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
         }
         .padding(16)
-        .cloudflarePanel()
+        .background(CloudflareStyle.amber.opacity(0.14))
+        .appSurface()
     }
 
     private var advancedTools: some View {

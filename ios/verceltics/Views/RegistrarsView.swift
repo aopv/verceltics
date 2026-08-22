@@ -156,6 +156,7 @@ struct RegistrarDashboardView: View {
     @State private var navigationRoute: RegistrarProRoute?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(RegistrarStore.self) private var store
     @Environment(PaywallManager.self) private var paywallManager
 
@@ -304,31 +305,28 @@ struct RegistrarDashboardView: View {
 
     private var portfolioHeader: some View {
         VStack(alignment: .leading, spacing: 17) {
-            HStack(spacing: 13) {
-                RegistrarMark(provider: provider, size: 55)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(account.name)
-                        .font(.headline)
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
-                    Text(provider.apiDescription)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(2)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    portfolioIdentity
+                    AppStatusBadge(text: "Connected", tone: .success)
                 }
-                Spacer()
-                AppStatusBadge(text: "Connected", tone: .success)
+            } else {
+                HStack(spacing: 13) {
+                    portfolioIdentity
+                    Spacer()
+                    AppStatusBadge(text: "Connected", tone: .success)
+                }
             }
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     Text("EXPIRY HEALTH")
-                        .font(.caption2.weight(.semibold))
+                        .font(AppTheme.displayFont(.caption2))
                         .tracking(1)
                         .foregroundStyle(AppTheme.textSecondary)
                     Spacer()
                     Text(expiryHealthLabel)
-                        .font(.caption.weight(.semibold))
+                        .font(.caption.weight(.bold))
                         .foregroundStyle(expiryHealthColor)
                 }
                 GeometryReader { geometry in
@@ -346,6 +344,23 @@ struct RegistrarDashboardView: View {
         .providerSurface(accent: provider.accentColor)
     }
 
+    private var portfolioIdentity: some View {
+        HStack(spacing: 13) {
+            RegistrarMark(provider: provider, size: 55)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(account.name)
+                    .font(AppTheme.displayFont(.title3))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                Text(provider.apiDescription)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+            }
+            .layoutPriority(1)
+        }
+    }
+
     private var stats: some View {
         LazyVGrid(
             columns: statColumns,
@@ -358,6 +373,9 @@ struct RegistrarDashboardView: View {
     }
 
     private var statColumns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
         if horizontalSizeClass == .regular {
             return Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
         }
@@ -366,9 +384,13 @@ struct RegistrarDashboardView: View {
 
     private func statCard(_ title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon).font(.caption.weight(.semibold)).foregroundStyle(provider.accentColor)
-            Text(value).font(.title3.weight(.semibold).monospacedDigit())
-            Text(title.uppercased()).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
+            AppIconTile(icon: icon, tint: provider.accentColor, size: 28)
+            Text(value).font(AppTheme.displayFont(.title2).monospacedDigit())
+            Text(title.uppercased())
+                .font(AppTheme.displayFont(.caption2))
+                .tracking(0.6)
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
@@ -376,24 +398,43 @@ struct RegistrarDashboardView: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 10) {
-            Button {
-                request(.providerDashboard)
-            } label: { actionLabel("Dashboard", icon: "safari.fill") }
-            Button {
-                request(.completeAPI)
-            } label: { actionLabel("Complete API", icon: "list.bullet.rectangle.fill") }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 10) {
+                    registrarActionButton(route: .providerDashboard, title: "Dashboard", icon: "safari.fill")
+                    registrarActionButton(route: .completeAPI, title: "Complete API", icon: "list.bullet.rectangle.fill")
+                }
+            } else {
+                HStack(spacing: 10) {
+                    registrarActionButton(route: .providerDashboard, title: "Dashboard", icon: "safari.fill")
+                    registrarActionButton(route: .completeAPI, title: "Complete API", icon: "list.bullet.rectangle.fill")
+                }
+            }
         }
         .buttonStyle(PressScaleButtonStyle())
         .frame(maxWidth: horizontalSizeClass == .regular ? 470 : .infinity, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func registrarActionButton(
+        route: RegistrarProRoute,
+        title: String,
+        icon: String
+    ) -> some View {
+        Button {
+            request(route)
+        } label: {
+            actionLabel(title, icon: icon)
+        }
+    }
+
     private func actionLabel(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon)
-            .font(.system(size: 12, weight: .bold))
+            .font(AppTheme.displayFont(.subheadline))
             .foregroundStyle(AppTheme.textPrimary)
-            .frame(maxWidth: .infinity).frame(height: 47)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 47)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
             .appSurface(raised: true)
     }
 
@@ -446,16 +487,20 @@ struct RegistrarDashboardView: View {
         HStack(spacing: 13) {
             VStack(spacing: 1) {
                 Text(expiryValue(domain))
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                Text(expiryUnit(domain)).font(.caption2.weight(.semibold)).tracking(0.5)
+                    .font(AppTheme.displayFont(.headline).monospacedDigit())
+                Text(expiryUnit(domain)).font(AppTheme.displayFont(.caption2)).tracking(0.5)
             }
             .foregroundStyle(expiryColor(domain))
             .frame(width: 42, height: 42)
-            .background(expiryColor(domain).opacity(0.11))
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .background(AppTheme.signalForeground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(domain.name).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.textPrimary).lineLimit(2)
+                Text(domain.name).font(.subheadline.weight(.bold)).foregroundStyle(AppTheme.textPrimary).lineLimit(2)
                 HStack(spacing: 7) {
                     if domain.autoRenew == true { Label("Auto", systemImage: "arrow.triangle.2.circlepath") }
                     if domain.locked == true { Label("Locked", systemImage: "lock.fill") }

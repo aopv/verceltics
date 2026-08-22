@@ -132,9 +132,9 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text(connectionCategory.sectionTitle)
-                        .font(.caption2.weight(.semibold))
-                        .tracking(1.5)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .font(AppTheme.displayFont(.caption))
+                        .tracking(1.0)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .padding(.horizontal, 4)
 
                     switch connectionCategory {
@@ -185,22 +185,25 @@ struct LoginView: View {
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {
-        let accent = provider.accentColor
         return Button {
             authManager.error = nil
             updateSelection { selectedProvider = provider }
         } label: {
             HStack(spacing: 13) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(accent.opacity(0.14))
+                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                        .fill(provider == .vercel ? AppTheme.surface : AppTheme.signalForeground)
                     ProviderMark(provider: provider, size: 18)
                 }
                 .frame(width: 34, height: 34)
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 1)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.headline)
+                        .font(.headline.weight(.bold))
                     Text(provider.connectionSubtitle)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
@@ -230,15 +233,19 @@ struct LoginView: View {
         } label: {
             HStack(spacing: 13) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(provider.accentColor.opacity(0.14))
+                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                        .fill(AppTheme.signalForeground)
                     SiteProviderMark(provider: provider, size: 20)
                 }
                 .frame(width: 34, height: 34)
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 1)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.headline)
+                        .font(.headline.weight(.bold))
                     Text(provider.connectionSubtitle)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
@@ -271,7 +278,7 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.headline)
+                        .font(.headline.weight(.bold))
                     Text(provider.apiDescription)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
@@ -393,8 +400,8 @@ struct LoginView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 54)
-                        .background(tokenInput.isEmpty ? AppTheme.surfaceRaised : AppTheme.signal)
-                        .foregroundStyle(tokenInput.isEmpty ? AppTheme.textTertiary : .white)
+                        .background(tokenInput.isEmpty ? AppTheme.surfaceRaised : AppTheme.signalFill)
+                        .foregroundStyle(tokenInput.isEmpty ? AppTheme.textTertiary : AppTheme.signalForeground)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -538,8 +545,8 @@ struct LoginView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 54)
-                            .background(canConnectCloudflare ? AppTheme.signal : AppTheme.surfaceRaised)
-                            .foregroundStyle(canConnectCloudflare ? .white : AppTheme.textTertiary)
+                            .background(canConnectCloudflare ? AppTheme.signalFill : AppTheme.surfaceRaised)
+                            .foregroundStyle(canConnectCloudflare ? AppTheme.signalForeground : AppTheme.textTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .buttonStyle(PressScaleButtonStyle())
@@ -624,12 +631,16 @@ struct LoginView: View {
 
             ProviderMark(provider: provider, size: 34)
                 .frame(width: 72, height: 72)
-                .background(provider.accentColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(provider == .vercel ? AppTheme.surface : AppTheme.signalForeground)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous)
+                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
+                }
 
             VStack(spacing: 6) {
                 Text("Connect \(provider.displayName)")
-                    .font(.title2.weight(.semibold))
+                    .font(.title2.weight(.black).width(.condensed))
                 Text(provider == .cloudflare ? "Manage your Cloudflare edge" : "Analytics for your Vercel projects")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)

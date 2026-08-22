@@ -1,8 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// The app's visual language: quiet infrastructure surfaces with provider color
-/// reserved for identity and state, rather than decorative gradients.
+/// Verceltics 3's "Soft Neo Utility" visual language. Content uses warm paper,
+/// strong ink outlines, signal orange, and restrained offset depth. Native
+/// navigation and transient controls keep their system Liquid Glass treatment.
 enum AppTheme {
     private static func adaptive(light: UIColor, dark: UIColor) -> Color {
         Color(uiColor: UIColor { traits in
@@ -11,85 +12,97 @@ enum AppTheme {
     }
 
     static let canvas = adaptive(
-        light: UIColor(red: 0.955, green: 0.966, blue: 0.982, alpha: 1),
-        dark: UIColor(red: 0.018, green: 0.022, blue: 0.030, alpha: 1)
+        light: UIColor(red: 0.973, green: 0.953, blue: 0.910, alpha: 1),
+        dark: UIColor(red: 0.047, green: 0.042, blue: 0.034, alpha: 1)
     )
     static let surface = adaptive(
-        light: UIColor(red: 0.995, green: 0.998, blue: 1.0, alpha: 1),
-        dark: UIColor(red: 0.060, green: 0.070, blue: 0.090, alpha: 1)
+        light: UIColor(red: 1.0, green: 0.992, blue: 0.965, alpha: 1),
+        dark: UIColor(red: 0.105, green: 0.092, blue: 0.073, alpha: 1)
     )
     static let surfaceRaised = adaptive(
-        light: UIColor(red: 0.918, green: 0.935, blue: 0.961, alpha: 1),
-        dark: UIColor(red: 0.082, green: 0.092, blue: 0.115, alpha: 1)
+        light: UIColor(red: 0.927, green: 0.890, blue: 0.822, alpha: 1),
+        dark: UIColor(red: 0.157, green: 0.137, blue: 0.108, alpha: 1)
     )
     static let textPrimary = adaptive(
-        light: UIColor(red: 0.070, green: 0.090, blue: 0.125, alpha: 1),
-        dark: UIColor(red: 0.94, green: 0.95, blue: 0.97, alpha: 1)
+        light: UIColor(red: 0.055, green: 0.049, blue: 0.039, alpha: 1),
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 1)
     )
     static let textSecondary = adaptive(
-        light: UIColor(red: 0.33, green: 0.37, blue: 0.44, alpha: 1),
-        dark: UIColor(red: 0.64, green: 0.67, blue: 0.73, alpha: 1)
+        light: UIColor(red: 0.36, green: 0.325, blue: 0.274, alpha: 1),
+        dark: UIColor(red: 0.73, green: 0.687, blue: 0.614, alpha: 1)
     )
     static let textTertiary = adaptive(
-        light: UIColor(red: 0.49, green: 0.53, blue: 0.60, alpha: 1),
-        dark: UIColor(red: 0.44, green: 0.47, blue: 0.53, alpha: 1)
+        light: UIColor(red: 0.416, green: 0.373, blue: 0.314, alpha: 1),
+        dark: UIColor(red: 0.54, green: 0.497, blue: 0.425, alpha: 1)
     )
     static let stroke = adaptive(
-        light: UIColor.black.withAlphaComponent(0.095),
-        dark: UIColor.white.withAlphaComponent(0.10)
+        light: UIColor.black.withAlphaComponent(0.74),
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.52)
     )
     static let strokeStrong = adaptive(
-        light: UIColor.black.withAlphaComponent(0.15),
-        dark: UIColor.white.withAlphaComponent(0.14)
+        light: UIColor.black.withAlphaComponent(0.94),
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.78)
     )
     static let strokeSoft = adaptive(
-        light: UIColor.black.withAlphaComponent(0.060),
-        dark: UIColor.white.withAlphaComponent(0.055)
+        light: UIColor.black.withAlphaComponent(0.25),
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.22)
     )
     static let divider = adaptive(
-        light: UIColor.black.withAlphaComponent(0.075),
-        dark: UIColor.white.withAlphaComponent(0.065)
+        light: UIColor.black.withAlphaComponent(0.32),
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.25)
     )
     static let signal = adaptive(
-        light: UIColor(red: 0.075, green: 0.37, blue: 0.79, alpha: 1),
-        dark: UIColor(red: 0.31, green: 0.63, blue: 1.0, alpha: 1)
+        light: UIColor(red: 0.698, green: 0.227, blue: 0.0, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.52, blue: 0.19, alpha: 1)
+    )
+    static let signalFill = adaptive(
+        light: UIColor(red: 1.0, green: 0.38, blue: 0.035, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.52, blue: 0.19, alpha: 1)
+    )
+    static let signalForeground = adaptive(
+        light: UIColor(red: 0.045, green: 0.040, blue: 0.032, alpha: 1),
+        dark: UIColor(red: 0.045, green: 0.040, blue: 0.032, alpha: 1)
     )
     static let success = adaptive(
-        light: UIColor(red: 0.08, green: 0.49, blue: 0.27, alpha: 1),
-        dark: UIColor(red: 0.30, green: 0.79, blue: 0.52, alpha: 1)
+        light: UIColor(red: 0.078, green: 0.451, blue: 0.192, alpha: 1),
+        dark: UIColor(red: 0.38, green: 0.86, blue: 0.44, alpha: 1)
     )
     static let warning = adaptive(
-        light: UIColor(red: 0.65, green: 0.36, blue: 0.02, alpha: 1),
-        dark: UIColor(red: 0.96, green: 0.65, blue: 0.24, alpha: 1)
+        light: UIColor(red: 0.522, green: 0.314, blue: 0.0, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.72, blue: 0.20, alpha: 1)
     )
     static let danger = adaptive(
-        light: UIColor(red: 0.73, green: 0.12, blue: 0.17, alpha: 1),
-        dark: UIColor(red: 0.96, green: 0.35, blue: 0.38, alpha: 1)
+        light: UIColor(red: 0.76, green: 0.10, blue: 0.14, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.36, blue: 0.39, alpha: 1)
     )
     static let shadow = adaptive(
-        light: UIColor.black.withAlphaComponent(0.10),
-        dark: UIColor.black.withAlphaComponent(0.24)
+        light: UIColor.black.withAlphaComponent(0.72),
+        dark: UIColor.black.withAlphaComponent(0.86)
     )
     static let shadowSoft = adaptive(
-        light: UIColor.black.withAlphaComponent(0.065),
-        dark: UIColor.black.withAlphaComponent(0.14)
+        light: UIColor.black.withAlphaComponent(0.42),
+        dark: UIColor.black.withAlphaComponent(0.62)
     )
     static let glassTint = adaptive(
-        light: UIColor.white.withAlphaComponent(0.16),
-        dark: UIColor.black.withAlphaComponent(0.58)
+        light: UIColor(red: 1.0, green: 0.97, blue: 0.90, alpha: 0.14),
+        dark: UIColor.black.withAlphaComponent(0.46)
     )
     static let skeleton = adaptive(
-        light: UIColor.black.withAlphaComponent(0.045),
-        dark: UIColor.white.withAlphaComponent(0.045)
+        light: UIColor.black.withAlphaComponent(0.070),
+        dark: UIColor.white.withAlphaComponent(0.055)
     )
     static let skeletonStrong = adaptive(
-        light: UIColor.black.withAlphaComponent(0.070),
-        dark: UIColor.white.withAlphaComponent(0.075)
+        light: UIColor.black.withAlphaComponent(0.12),
+        dark: UIColor.white.withAlphaComponent(0.095)
     )
 
-    static let panelRadius: CGFloat = 16
-    static let controlRadius: CGFloat = 13
-    static let iconRadius: CGFloat = 10
+    static let panelRadius: CGFloat = 9
+    static let controlRadius: CGFloat = 8
+    static let iconRadius: CGFloat = 7
+
+    static func displayFont(_ style: Font.TextStyle, weight: Font.Weight = .black) -> Font {
+        .system(style, design: .default, weight: weight).width(.condensed)
+    }
 }
 
 /// Shared responsive dimensions for the app's operator workspace. Compact
@@ -172,23 +185,15 @@ struct AppSurfaceModifier: ViewModifier {
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            raised ? AppTheme.strokeStrong : AppTheme.stroke,
-                            AppTheme.stroke,
-                            AppTheme.strokeSoft,
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.65
+                    raised ? AppTheme.strokeStrong : AppTheme.stroke,
+                    lineWidth: raised ? 1.6 : 1.25
                 )
             }
-            .shadow(
-                color: raised ? AppTheme.shadow : AppTheme.shadowSoft,
-                radius: raised ? 12 : 7,
-                y: raised ? 6 : 3
-            )
+            .background {
+                shape
+                    .fill(raised ? AppTheme.shadow : AppTheme.shadowSoft)
+                    .offset(x: raised ? 4 : 2.5, y: raised ? 4 : 2.5)
+            }
     }
 }
 
@@ -199,25 +204,27 @@ struct ProviderSurfaceModifier: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
-            .background(AppTheme.surface)
-            .clipShape(shape)
-            .overlay {
-                shape.strokeBorder(
-                    LinearGradient(
-                        colors: [accent.opacity(0.22), AppTheme.stroke, AppTheme.strokeSoft],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.65
+            .background {
+                LinearGradient(
+                    colors: [accent.opacity(0.13), AppTheme.surface, AppTheme.surface],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
             }
-            .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(accent.opacity(0.72))
-                    .frame(width: 2, height: 24)
-                    .padding(.leading, 1)
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 1.45)
             }
-            .shadow(color: AppTheme.shadowSoft, radius: 8, y: 4)
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(accent)
+                    .frame(width: 4)
+            }
+            .background {
+                shape
+                    .fill(AppTheme.shadowSoft)
+                    .offset(x: 3, y: 3)
+            }
     }
 }
 
@@ -318,36 +325,42 @@ struct AppStatusBadge: View {
         HStack(spacing: 5) {
             Circle()
                 .fill(tone.color)
-                .frame(width: 5, height: 5)
-                .shadow(color: tone.color.opacity(0.65), radius: 3)
+                .frame(width: 6, height: 6)
             Text(text)
-                .font(.caption2.weight(.semibold))
+                .font(AppTheme.displayFont(.caption2))
+                .textCase(.uppercase)
                 .lineLimit(1)
         }
-            .foregroundStyle(tone.color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(tone.color.opacity(0.09), in: Capsule())
-            .overlay(Capsule().strokeBorder(tone.color.opacity(0.18), lineWidth: 0.5))
+            .foregroundStyle(AppTheme.textPrimary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(
+                tone.color.opacity(0.16),
+                in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(tone.color, lineWidth: 1.25)
+            }
             .accessibilityLabel("Status: \(text)")
     }
 }
 
 struct AppIconTile: View {
     let icon: String
-    var tint: Color = AppTheme.signal
+    var tint: Color = AppTheme.signalFill
     var size: CGFloat = 36
 
     var body: some View {
         Image(systemName: icon)
-            .font(.system(size: size * 0.38, weight: .semibold))
-            .foregroundStyle(tint)
+            .font(.system(size: size * 0.38, weight: .bold))
+            .foregroundStyle(AppTheme.textPrimary)
             .frame(width: size, height: size)
-            .background(tint.opacity(0.105))
+            .background(tint.opacity(0.16))
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                    .strokeBorder(tint.opacity(0.12), lineWidth: 0.5)
+                    .strokeBorder(tint, lineWidth: 1.25)
             }
             .accessibilityHidden(true)
     }
@@ -361,17 +374,21 @@ struct AppSectionHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(title.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(1.1)
-                .foregroundStyle(AppTheme.textSecondary)
+                .font(AppTheme.displayFont(.caption))
+                .tracking(0.9)
+                .foregroundStyle(AppTheme.textPrimary)
             Spacer(minLength: 8)
             if let count {
                 Text(count.formatted())
-                    .font(.caption2.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(accent)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(AppTheme.surfaceRaised, in: Capsule())
+                    .font(AppTheme.displayFont(.caption).monospacedDigit())
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(accent.opacity(0.16), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .strokeBorder(accent, lineWidth: 1)
+                    }
             }
         }
     }
@@ -434,11 +451,11 @@ struct AppEmptyState: View {
             }
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.signalForeground)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 44)
-                    .background(AppTheme.signal, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                    .background(AppTheme.signalFill, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                     .buttonStyle(PressScaleButtonStyle())
             }
         }
@@ -452,7 +469,7 @@ struct AppEmptyState: View {
 /// than replacing the whole workspace with a spinner.
 struct AppDashboardLoadingView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    var accent: Color = AppTheme.signal
+    var accent: Color = AppTheme.signalFill
     var showsMetrics = true
 
     private var columns: [GridItem] {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct VercelticsApp: App {
@@ -9,6 +10,25 @@ struct VercelticsApp: App {
     @State private var registrarStore = RegistrarStore()
     @State private var siteStore = SiteStore()
     @State private var firstLaunchExperience = FirstLaunchExperienceStore()
+
+    init() {
+        let segmentedControl = UISegmentedControl.appearance()
+        segmentedControl.selectedSegmentTintColor = UIColor(AppTheme.signalFill)
+        segmentedControl.setTitleTextAttributes(
+            [
+                .foregroundColor: UIColor(AppTheme.signalForeground),
+                .font: UIFont.systemFont(ofSize: 13, weight: .bold),
+            ],
+            for: .selected
+        )
+        segmentedControl.setTitleTextAttributes(
+            [
+                .foregroundColor: UIColor(AppTheme.textPrimary),
+                .font: UIFont.systemFont(ofSize: 13, weight: .semibold),
+            ],
+            for: .normal
+        )
+    }
 
     private var hasAnyConnection: Bool {
         !authManager.accounts.isEmpty
@@ -61,7 +81,7 @@ struct VercelticsApp: App {
             .environment(appearanceStore)
             .environment(registrarStore)
             .environment(siteStore)
-            .tint(AppTheme.signal)
+            .appNativeControlTheme()
             .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
             .task(id: firstLaunchMigrationState) {
                 guard paywallManager.hasCheckedEntitlements else { return }

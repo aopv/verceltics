@@ -191,7 +191,6 @@ struct ProjectsView: View {
     @AppStorage("hasShownOnboardingRatePrompt") private var hasShownOnboardingRatePrompt = false
     @State private var vm: ProjectsViewModel
     @State private var searchText = ""
-    @State private var isSearching = false
     @State private var proGate = ProAccessGate<ProjectProRoute>()
     @State private var navigationProjectId: String?
 
@@ -225,41 +224,56 @@ struct ProjectsView: View {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
 
-                if vm.isLoading {
-                    ProjectsSkeletonView()
-                } else if let error = vm.error, vm.projects.isEmpty {
-                    ErrorStateView(message: error) {
-                        Task { await loadProjects() }
-                    }
-                } else if let warning = vm.warning, vm.projects.isEmpty {
-                    ErrorStateView(message: warning) {
-                        Task { await refreshProjects() }
-                    }
-                } else if vm.projects.isEmpty {
-                    EmptyStateView(
-                        icon: "folder",
-                        title: "No projects",
-                        subtitle: "Create a Vercel project, then refresh this screen.",
-                        actionTitle: "Open Vercel"
-                    ) {
-                        if let url = URL(string: "https://vercel.com/new") {
-                            UIApplication.shared.open(url)
+                VStack(spacing: 0) {
+                    AppGlassSearchField(
+                        text: $searchText,
+                        prompt: "Search projects",
+                        startsFocused: startWithSearch,
+                        focusRequestID: searchRequestID
+                    )
+                    .padding(.horizontal, AppLayout.pagePadding(for: hSize))
+                    .padding(.top, 16)
+                    .padding(.bottom, 14)
+                    .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: hSize)
+
+                    Group {
+                        if vm.isLoading {
+                            ProjectsSkeletonView()
+                        } else if let error = vm.error, vm.projects.isEmpty {
+                            ErrorStateView(message: error) {
+                                Task { await loadProjects() }
+                            }
+                        } else if let warning = vm.warning, vm.projects.isEmpty {
+                            ErrorStateView(message: warning) {
+                                Task { await refreshProjects() }
+                            }
+                        } else if vm.projects.isEmpty {
+                            EmptyStateView(
+                                icon: "folder",
+                                title: "No projects",
+                                subtitle: "Create a Vercel project, then refresh this screen.",
+                                actionTitle: "Open Vercel"
+                            ) {
+                                if let url = URL(string: "https://vercel.com/new") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                        } else if filteredProjects.isEmpty {
+                            EmptyStateView(
+                                icon: "magnifyingglass",
+                                title: "No matches",
+                                subtitle: "Nothing in your projects matches \u{201C}\(searchText)\u{201D}.",
+                                actionTitle: "Clear search"
+                            ) { searchText = "" }
+                        } else {
+                            projectsList
                         }
                     }
-                } else if filteredProjects.isEmpty {
-                    EmptyStateView(
-                        icon: "magnifyingglass",
-                        title: "No matches",
-                        subtitle: "Nothing in your projects matches \u{201C}\(searchText)\u{201D}.",
-                        actionTitle: "Clear search"
-                    ) { searchText = "" }
-                } else {
-                    projectsList
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .navigationTitle("Vercel")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()
@@ -268,12 +282,6 @@ struct ProjectsView: View {
             .task { await loadProjects() }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
                 Task { await loadProjects() }
-            }
-            .onAppear {
-                if startWithSearch { isSearching = true }
-            }
-            .onChange(of: searchRequestID) { _, _ in
-                isSearching = true
             }
             .navigationDestination(item: $navigationProjectId) { id in
                 if let project = vm.projects.first(where: { $0.id == id }) {

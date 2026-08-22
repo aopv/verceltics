@@ -484,7 +484,6 @@ struct CloudflareDashboardView: View {
     @Environment(PaywallManager.self) private var paywallManager
     @State private var viewModel: CloudflareDashboardViewModel
     @State private var searchText = ""
-    @FocusState private var isSearchFocused: Bool
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<CloudflareProRoute>()
     @State private var navigationRoute: CloudflareProRoute?
@@ -588,19 +587,12 @@ struct CloudflareDashboardView: View {
                         }
                         Task { await viewModel.refresh() }
                     } label: {
-                        Group {
-                            if viewModel.isRefreshing {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(AppTheme.textPrimary)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 16, weight: .black))
-                                    .foregroundStyle(AppTheme.textPrimary)
-                                    .rotationEffect(.degrees(refreshSpin))
-                            }
-                        }
-                        .frame(width: 44, height: 44)
+                        AppToolbarActionLabel(
+                            systemImage: "arrow.clockwise",
+                            accent: CloudflareStyle.orange,
+                            rotation: refreshSpin,
+                            isBusy: viewModel.isRefreshing
+                        )
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing Cloudflare" : "Refresh Cloudflare")
@@ -627,12 +619,6 @@ struct CloudflareDashboardView: View {
             }
             .onChange(of: viewModel.selectedAccountID) { _, selectedID in
                 if let selectedID { persistedAccountID = selectedID }
-            }
-            .onAppear {
-                if startWithSearch { focusSearchField() }
-            }
-            .onChange(of: searchRequestID) { _, _ in
-                focusSearchField()
             }
             .onReceive(NotificationCenter.default.publisher(for: .cloudflareDataDidChange)) { notification in
                 guard notification.object as? String == credentialCacheScope,
@@ -735,51 +721,13 @@ struct CloudflareDashboardView: View {
     }
 
     private var cloudflareSearchField: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 21, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .accessibilityHidden(true)
-
-            TextField("Search Cloudflare", text: $searchText)
-                .font(.body)
-                .foregroundStyle(AppTheme.textPrimary)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .focused($isSearchFocused)
-                .onSubmit { isSearchFocused = false }
-                .accessibilityLabel("Search Cloudflare")
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear Cloudflare search")
-            }
-        }
-        .padding(.leading, 16)
-        .padding(.trailing, searchText.isEmpty ? 16 : 4)
-        .frame(minHeight: 54)
-        .contentShape(Rectangle())
-        .onTapGesture { isSearchFocused = true }
-        .nativeGlassSurface(
-            cornerRadius: AppTheme.controlRadius,
-            isInteractive: true
+        AppGlassSearchField(
+            text: $searchText,
+            prompt: "Search Cloudflare",
+            accent: CloudflareStyle.orange,
+            startsFocused: startWithSearch,
+            focusRequestID: searchRequestID
         )
-    }
-
-    private func focusSearchField() {
-        Task { @MainActor in
-            await Task.yield()
-            isSearchFocused = true
-        }
     }
 
     private var resourceSections: some View {

@@ -68,7 +68,7 @@ struct SiteAccountMenu: View {
         } label: {
             HStack(spacing: 6) {
                 if let provider = store.activeAccount?.provider {
-                    SiteProviderMark(provider: provider, size: 21, monochrome: true)
+                    SiteProviderMark(provider: provider, size: 21)
                 } else {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.system(size: 16, weight: .semibold))
@@ -76,15 +76,15 @@ struct SiteAccountMenu: View {
                 }
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(AppTheme.textTertiary)
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundStyle(AppTheme.navigationAccent)
             }
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected site service")
             .accessibilityValue(store.activeAccount?.name ?? "No active site service")
         }
-        .tint(AppTheme.textPrimary)
+        .tint(AppTheme.navigationAccent)
         .sheet(isPresented: $showingAddService) {
             LoginView(initialCategory: .sites)
                 .presentationSizing(.page)

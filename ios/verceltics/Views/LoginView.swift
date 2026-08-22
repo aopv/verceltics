@@ -221,7 +221,10 @@ struct LoginView: View {
             .padding(.vertical, 8)
             .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
-            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
+            .liquidGlassSurface(
+                cornerRadius: AppTheme.panelRadius,
+                tint: provider.accentColor.opacity(0.10)
+            )
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
@@ -263,7 +266,10 @@ struct LoginView: View {
             .padding(.vertical, 8)
             .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
-            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
+            .liquidGlassSurface(
+                cornerRadius: AppTheme.panelRadius,
+                tint: provider.accentColor.opacity(0.10)
+            )
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
@@ -296,7 +302,10 @@ struct LoginView: View {
             .padding(.vertical, 8)
             .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
-            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
+            .liquidGlassSurface(
+                cornerRadius: AppTheme.panelRadius,
+                tint: provider.accentColor.opacity(0.10)
+            )
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
@@ -662,17 +671,23 @@ struct LoginView: View {
 
 private struct LiquidGlassSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
+    let tint: Color
 
     func body(content: Content) -> some View {
-        content.nativeGlassSurface(cornerRadius: cornerRadius, isInteractive: true)
+        content.nativeGlassSurface(
+            cornerRadius: cornerRadius,
+            isInteractive: true,
+            tint: tint
+        )
     }
 }
 
 private extension View {
-    func liquidGlassSurface(cornerRadius: CGFloat) -> some View {
+    func liquidGlassSurface(cornerRadius: CGFloat, tint: Color) -> some View {
         modifier(
             LiquidGlassSurfaceModifier(
-                cornerRadius: cornerRadius
+                cornerRadius: cornerRadius,
+                tint: tint
             )
         )
     }

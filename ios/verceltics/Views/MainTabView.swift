@@ -58,12 +58,18 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab("Hosting", systemImage: "server.rack", value: MainTabDestination.hosting) {
+            Tab(value: MainTabDestination.hosting) {
                 providerHome(
                     searchRequestID: hostingSearchRequestID,
                     backgroundRefreshRequestID: hostingRefreshRequestID
                 )
                     .id(activeHostingViewIdentity)
+            } label: {
+                AppTabLabel(
+                    title: "Hosting",
+                    systemImage: "server.rack",
+                    isSelected: selectedTab == .hosting
+                )
             }
 
             Tab(value: MainTabDestination.search, role: .search) {
@@ -72,24 +78,48 @@ struct MainTabView: View {
                 // Keeping this destination inert prevents a second dashboard
                 // tree from issuing duplicate provider requests.
                 Color.clear
+            } label: {
+                AppTabLabel(
+                    title: "Search",
+                    systemImage: "magnifyingglass",
+                    isSelected: selectedTab == .search
+                )
             }
 
-            Tab("Registrars", systemImage: "globe.americas.fill", value: MainTabDestination.registrars) {
+            Tab(value: MainTabDestination.registrars) {
                 RegistrarsView(
                     searchRequestID: registrarSearchRequestID,
                     backgroundRefreshRequestID: registrarRefreshRequestID
                 )
+            } label: {
+                AppTabLabel(
+                    title: "Registrars",
+                    systemImage: "globe.americas",
+                    isSelected: selectedTab == .registrars
+                )
             }
 
-            Tab("Sites", systemImage: "chart.xyaxis.line", value: MainTabDestination.sites) {
+            Tab(value: MainTabDestination.sites) {
                 SitesView(
                     searchRequestID: sitesSearchRequestID,
                     backgroundRefreshRequestID: sitesRefreshRequestID
                 )
+            } label: {
+                AppTabLabel(
+                    title: "Sites",
+                    systemImage: "chart.xyaxis.line",
+                    isSelected: selectedTab == .sites
+                )
             }
 
-            Tab("About", systemImage: "info.circle", value: MainTabDestination.about) {
+            Tab(value: MainTabDestination.about) {
                 AboutView()
+            } label: {
+                AppTabLabel(
+                    title: "About",
+                    systemImage: "info.circle",
+                    isSelected: selectedTab == .about
+                )
             }
             .badge(appUpdateChecker.isUpdateAvailable ? Text("") : nil)
         }

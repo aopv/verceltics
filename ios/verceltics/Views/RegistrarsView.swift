@@ -150,7 +150,6 @@ struct RegistrarDashboardView: View {
     var backgroundRefreshRequestID = 0
     @State private var viewModel: RegistrarDashboardViewModel
     @State private var searchText = ""
-    @State private var isSearching = false
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<RegistrarProRoute>()
     @State private var navigationRoute: RegistrarProRoute?
@@ -198,7 +197,6 @@ struct RegistrarDashboardView: View {
             }
             .navigationTitle("Registrars")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search domains")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -208,10 +206,11 @@ struct RegistrarDashboardView: View {
                         }
                         Task { await viewModel.load(refresh: true) }
                     } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .rotationEffect(.degrees(refreshSpin))
+                        AppToolbarActionLabel(
+                            systemImage: "arrow.clockwise",
+                            rotation: refreshSpin,
+                            isBusy: viewModel.isRefreshing
+                        )
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing domains" : "Refresh domains")
@@ -220,12 +219,6 @@ struct RegistrarDashboardView: View {
             .task { await viewModel.load() }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
                 Task { await viewModel.load() }
-            }
-            .onAppear {
-                if startWithSearch { isSearching = true }
-            }
-            .onChange(of: searchRequestID) { _, _ in
-                isSearching = true
             }
             .navigationDestination(item: $navigationRoute) { route in
                 destination(for: route)
@@ -238,60 +231,74 @@ struct RegistrarDashboardView: View {
     }
 
     private var dashboard: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                portfolioHeader
+        VStack(spacing: 0) {
+            AppGlassSearchField(
+                text: $searchText,
+                prompt: "Search domains",
+                startsFocused: startWithSearch,
+                focusRequestID: searchRequestID
+            )
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 16)
+            .padding(.bottom, 14)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
 
-                if let error = store.error {
-                    AppFeedbackBanner(
-                        title: "Saved registrar change failed",
-                        message: error,
-                        icon: "lock.trianglebadge.exclamationmark.fill",
-                        tint: AppTheme.danger
-                    )
-                }
-                stats
-                actions
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    portfolioHeader
 
-                if let error = viewModel.error {
-                    AppFeedbackBanner(
-                        title: "Couldn’t refresh domains",
-                        message: error,
-                        actionTitle: "Try again"
-                    ) {
-                        Task { await viewModel.load(refresh: true) }
+                    if let error = store.error {
+                        AppFeedbackBanner(
+                            title: "Saved registrar change failed",
+                            message: error,
+                            icon: "lock.trianglebadge.exclamationmark.fill",
+                            tint: AppTheme.danger
+                        )
                     }
-                }
+                    stats
+                    actions
 
-                AppSectionHeader(title: "Domain portfolio", count: filteredDomains.count, accent: provider.accentColor)
+                    if let error = viewModel.error {
+                        AppFeedbackBanner(
+                            title: "Couldn’t refresh domains",
+                            message: error,
+                            actionTitle: "Try again"
+                        ) {
+                            Task { await viewModel.load(refresh: true) }
+                        }
+                    }
 
-                if filteredDomains.isEmpty {
-                    AppEmptyState(
-                        icon: searchText.isEmpty ? "globe" : "magnifyingglass",
-                        title: searchText.isEmpty ? "No domains returned" : "No matching domains",
-                        message: searchText.isEmpty
-                            ? "This registrar did not return any domains for the connected account."
-                            : "Nothing matches “\(searchText)”."
-                    )
-                    .frame(maxWidth: .infinity)
-                    .appSurface()
-                } else {
-                    LazyVGrid(columns: domainColumns, spacing: 14) {
-                        ForEach(filteredDomains) { domain in
-                            Button {
-                                request(.domain(domain.id))
-                            } label: { domainRow(domain) }
-                            .buttonStyle(PressScaleButtonStyle())
+                    AppSectionHeader(title: "Domain portfolio", count: filteredDomains.count, accent: provider.accentColor)
+
+                    if filteredDomains.isEmpty {
+                        AppEmptyState(
+                            icon: searchText.isEmpty ? "globe" : "magnifyingglass",
+                            title: searchText.isEmpty ? "No domains returned" : "No matching domains",
+                            message: searchText.isEmpty
+                                ? "This registrar did not return any domains for the connected account."
+                                : "Nothing matches “\(searchText)”."
+                        )
+                        .frame(maxWidth: .infinity)
+                        .appSurface()
+                    } else {
+                        LazyVGrid(columns: domainColumns, spacing: 14) {
+                            ForEach(filteredDomains) { domain in
+                                Button {
+                                    request(.domain(domain.id))
+                                } label: { domainRow(domain) }
+                                .buttonStyle(PressScaleButtonStyle())
+                            }
                         }
                     }
                 }
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.top, 4)
+                .padding(.bottom, 24)
+                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
-            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-            .padding(.top, 18)
-            .padding(.bottom, 24)
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+            .refreshable { await viewModel.load(refresh: true) }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .refreshable { await viewModel.load(refresh: true) }
     }
 
     private var domainColumns: [GridItem] {

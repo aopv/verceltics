@@ -91,7 +91,6 @@ struct HostingDashboardView: View {
 
     @State private var viewModel: HostingDashboardViewModel
     @State private var searchText = ""
-    @State private var isSearching = false
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<HostingProRoute>()
     @State private var navigationRoute: HostingProRoute?
@@ -140,7 +139,6 @@ struct HostingDashboardView: View {
             }
             .navigationTitle(provider.displayName)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search \(provider.displayName)")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { ProviderAccountMenu() }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -150,10 +148,11 @@ struct HostingDashboardView: View {
                         }
                         Task { await viewModel.load(refresh: true) }
                     } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .rotationEffect(.degrees(refreshSpin))
+                        AppToolbarActionLabel(
+                            systemImage: "arrow.clockwise",
+                            rotation: refreshSpin,
+                            isBusy: viewModel.isRefreshing
+                        )
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing \(provider.displayName)" : "Refresh \(provider.displayName)")
@@ -162,14 +161,6 @@ struct HostingDashboardView: View {
             .task { await viewModel.load() }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
                 Task { await viewModel.load() }
-            }
-            .onAppear {
-                if startWithSearch {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { isSearching = true }
-                }
-            }
-            .onChange(of: searchRequestID) { _, _ in
-                isSearching = true
             }
             .navigationDestination(item: $navigationRoute) { route in
                 destination(for: route)
@@ -182,63 +173,76 @@ struct HostingDashboardView: View {
     }
 
     private var content: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                accountCard
+        VStack(spacing: 0) {
+            AppGlassSearchField(
+                text: $searchText,
+                prompt: "Search \(provider.displayName)",
+                startsFocused: startWithSearch,
+                focusRequestID: searchRequestID
+            )
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 16)
+            .padding(.bottom, 14)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
 
-                if let error = authManager.error {
-                    AppFeedbackBanner(
-                        title: "Saved account change failed",
-                        message: error,
-                        icon: "lock.trianglebadge.exclamationmark.fill",
-                        tint: AppTheme.danger
-                    )
-                }
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    accountCard
 
-                if let error = viewModel.error {
-                    AppFeedbackBanner(
-                        title: "Couldn’t refresh \(provider.displayName)",
-                        message: error,
-                        actionTitle: "Try again"
-                    ) {
-                        Task { await viewModel.load(refresh: true) }
+                    if let error = authManager.error {
+                        AppFeedbackBanner(
+                            title: "Saved account change failed",
+                            message: error,
+                            icon: "lock.trianglebadge.exclamationmark.fill",
+                            tint: AppTheme.danger
+                        )
                     }
-                }
 
-                actionGrid
+                    if let error = viewModel.error {
+                        AppFeedbackBanner(
+                            title: "Couldn’t refresh \(provider.displayName)",
+                            message: error,
+                            actionTitle: "Try again"
+                        ) {
+                            Task { await viewModel.load(refresh: true) }
+                        }
+                    }
 
-                AppSectionHeader(title: resourceTitle, count: filteredResources.count, accent: provider.accentColor)
+                    actionGrid
 
-                if filteredResources.isEmpty {
-                    AppEmptyState(
-                        icon: searchText.isEmpty ? provider.systemImage : "magnifyingglass",
-                        title: searchText.isEmpty ? "No resources returned" : "No matching resources",
-                        message: searchText.isEmpty
-                            ? "This provider did not return any \(resourceTitle.lowercased()) for the connected account."
-                            : "Nothing matches “\(searchText)”."
-                    )
-                    .frame(maxWidth: .infinity)
-                    .appSurface()
-                } else {
-                    LazyVGrid(columns: resourceColumns, spacing: 14) {
-                        ForEach(filteredResources) { resource in
-                            Button {
-                                request(.resource(resource.id))
-                            } label: {
-                                resourceRow(resource)
+                    AppSectionHeader(title: resourceTitle, count: filteredResources.count, accent: provider.accentColor)
+
+                    if filteredResources.isEmpty {
+                        AppEmptyState(
+                            icon: searchText.isEmpty ? provider.systemImage : "magnifyingglass",
+                            title: searchText.isEmpty ? "No resources returned" : "No matching resources",
+                            message: searchText.isEmpty
+                                ? "This provider did not return any \(resourceTitle.lowercased()) for the connected account."
+                                : "Nothing matches “\(searchText)”."
+                        )
+                        .frame(maxWidth: .infinity)
+                        .appSurface()
+                    } else {
+                        LazyVGrid(columns: resourceColumns, spacing: 14) {
+                            ForEach(filteredResources) { resource in
+                                Button {
+                                    request(.resource(resource.id))
+                                } label: {
+                                    resourceRow(resource)
+                                }
+                                .buttonStyle(PressScaleButtonStyle())
                             }
-                            .buttonStyle(PressScaleButtonStyle())
                         }
                     }
                 }
-
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.top, 4)
+                .padding(.bottom, 24)
+                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
-            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-            .padding(.top, 18)
-            .padding(.bottom, 24)
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+            .refreshable { await viewModel.load(refresh: true) }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .refreshable { await viewModel.load(refresh: true) }
     }
 
     private var resourceColumns: [GridItem] {

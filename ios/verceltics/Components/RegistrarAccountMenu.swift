@@ -56,18 +56,18 @@ struct RegistrarAccountMenu: View {
             }
         } label: {
             HStack(spacing: 6) {
-                if let provider = store.activeAccount?.provider { RegistrarMark(provider: provider, size: 25, monochrome: true) }
+                if let provider = store.activeAccount?.provider { RegistrarMark(provider: provider, size: 25) }
                 else { Image(systemName: "globe").font(.system(size: 16, weight: .bold)) }
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(AppTheme.textTertiary)
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundStyle(AppTheme.navigationAccent)
             }
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected registrar")
             .accessibilityValue(store.activeAccount?.name ?? "No active registrar")
         }
-        .tint(AppTheme.textPrimary)
+        .tint(AppTheme.navigationAccent)
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .registrars)
                 .presentationSizing(.page)

@@ -17,7 +17,6 @@ struct SitesView: View {
     var backgroundRefreshRequestID = 0
 
     @State private var searchText = ""
-    @State private var isSearching = false
     @State private var showingConnection = false
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<SiteProRoute>()
@@ -86,17 +85,17 @@ struct SitesView: View {
             }
             .navigationTitle("Sites")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: searchPrompt)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     SiteAccountMenu()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: refreshActive) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .rotationEffect(.degrees(refreshSpin))
+                        AppToolbarActionLabel(
+                            systemImage: "arrow.clockwise",
+                            rotation: refreshSpin,
+                            isBusy: isRefreshingActiveAccount
+                        )
                     }
                     .disabled(isRefreshingActiveAccount || activeAccount == nil)
                     .accessibilityLabel(isRefreshingActiveAccount ? "Refreshing selected site service" : "Refresh selected site service")
@@ -107,12 +106,6 @@ struct SitesView: View {
             }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
                 Task { await loadActive(force: false) }
-            }
-            .onAppear {
-                if startWithSearch { isSearching = true }
-            }
-            .onChange(of: searchRequestID) { _, _ in
-                isSearching = true
             }
             .sheet(isPresented: $showingConnection) {
                 LoginView(initialCategory: .sites)
@@ -134,91 +127,105 @@ struct SitesView: View {
     }
 
     private var dashboard: some View {
-        ScrollView {
-            LazyVStack(spacing: 18) {
-                if let account = activeAccount {
-                    Button {
-                        request(.service(account.id))
-                    } label: {
-                        serviceOverview(account)
+        VStack(spacing: 0) {
+            AppGlassSearchField(
+                text: $searchText,
+                prompt: searchPrompt,
+                startsFocused: startWithSearch,
+                focusRequestID: searchRequestID
+            )
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 16)
+            .padding(.bottom, 14)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+
+            ScrollView {
+                LazyVStack(spacing: 18) {
+                    if let account = activeAccount {
+                        Button {
+                            request(.service(account.id))
+                        } label: {
+                            serviceOverview(account)
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
+                    }
+
+                    if let activeRefreshError, let account = activeAccount {
+                        AppFeedbackBanner(
+                            title: "\(account.provider.displayName) could not refresh",
+                            message: activeRefreshError,
+                            actionTitle: "Try again"
+                        ) {
+                            refreshActive()
+                        }
+                    }
+
+                    if let persistenceError {
+                        AppFeedbackBanner(
+                            title: "Saved site data needs attention",
+                            message: persistenceError,
+                            icon: "lock.trianglebadge.exclamationmark.fill",
+                            tint: AppTheme.danger
+                        )
+                    }
+
+                    if !snapshotWarnings.isEmpty {
+                        AppFeedbackBanner(
+                            title: "\(snapshotWarnings.count) data \(snapshotWarnings.count == 1 ? "note" : "notes")",
+                            message: snapshotWarnings.prefix(3).joined(separator: "\n"),
+                            icon: "info.circle.fill",
+                            tint: AppTheme.warning
+                        )
+                    }
+
+                    AppSectionHeader(
+                        title: resourceSectionTitle,
+                        count: resources.count,
+                        accent: activeAccount?.provider.accentColor ?? AppTheme.signal
+                    )
+
+                    if resources.isEmpty {
+                        AppEmptyState(
+                            icon: searchText.isEmpty ? "network.slash" : "magnifyingglass",
+                            title: searchText.isEmpty ? "No \(resourceSectionTitle.lowercased()) returned yet" : "No matching \(resourceSectionTitle.lowercased())",
+                            message: searchText.isEmpty
+                                ? emptyResourceMessage
+                                : "Nothing matches “\(searchText)”.",
+                            actionTitle: searchText.isEmpty ? "Refresh service" : "Clear search"
+                        ) {
+                            if searchText.isEmpty { refreshActive() }
+                            else { searchText = "" }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .appSurface()
+                    } else {
+                        LazyVGrid(columns: siteColumns, spacing: 14) {
+                            ForEach(resources) { resource in
+                                Button {
+                                    if let account = activeAccount {
+                                        request(.resource(accountID: account.id, resourceID: resource.id))
+                                    }
+                                } label: {
+                                    resourceCard(resource)
+                                }
+                                .buttonStyle(PressScaleButtonStyle())
+                            }
+                        }
+                    }
+
+                    Button { showingConnection = true } label: {
+                        addServiceCard
                     }
                     .buttonStyle(PressScaleButtonStyle())
                 }
-
-                if let activeRefreshError, let account = activeAccount {
-                    AppFeedbackBanner(
-                        title: "\(account.provider.displayName) could not refresh",
-                        message: activeRefreshError,
-                        actionTitle: "Try again"
-                    ) {
-                        refreshActive()
-                    }
-                }
-
-                if let persistenceError {
-                    AppFeedbackBanner(
-                        title: "Saved site data needs attention",
-                        message: persistenceError,
-                        icon: "lock.trianglebadge.exclamationmark.fill",
-                        tint: AppTheme.danger
-                    )
-                }
-
-                if !snapshotWarnings.isEmpty {
-                    AppFeedbackBanner(
-                        title: "\(snapshotWarnings.count) data \(snapshotWarnings.count == 1 ? "note" : "notes")",
-                        message: snapshotWarnings.prefix(3).joined(separator: "\n"),
-                        icon: "info.circle.fill",
-                        tint: AppTheme.warning
-                    )
-                }
-
-                AppSectionHeader(
-                    title: resourceSectionTitle,
-                    count: resources.count,
-                    accent: activeAccount?.provider.accentColor ?? AppTheme.signal
-                )
-
-                if resources.isEmpty {
-                    AppEmptyState(
-                        icon: searchText.isEmpty ? "network.slash" : "magnifyingglass",
-                        title: searchText.isEmpty ? "No \(resourceSectionTitle.lowercased()) returned yet" : "No matching \(resourceSectionTitle.lowercased())",
-                        message: searchText.isEmpty
-                            ? emptyResourceMessage
-                            : "Nothing matches “\(searchText)”.",
-                        actionTitle: searchText.isEmpty ? "Refresh service" : "Clear search"
-                    ) {
-                        if searchText.isEmpty { refreshActive() }
-                        else { searchText = "" }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .appSurface()
-                } else {
-                    LazyVGrid(columns: siteColumns, spacing: 14) {
-                        ForEach(resources) { resource in
-                            Button {
-                                if let account = activeAccount {
-                                    request(.resource(accountID: account.id, resourceID: resource.id))
-                                }
-                            } label: {
-                                resourceCard(resource)
-                            }
-                            .buttonStyle(PressScaleButtonStyle())
-                        }
-                    }
-                }
-
-                Button { showingConnection = true } label: {
-                    addServiceCard
-                }
-                .buttonStyle(PressScaleButtonStyle())
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.top, 4)
+                .padding(.bottom, 28)
+                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
-            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-            .padding(.top, 18)
-            .padding(.bottom, 28)
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+            .refreshable { await loadActive(force: true) }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .refreshable { await loadActive(force: true) }
     }
 
     private var emptyState: some View {

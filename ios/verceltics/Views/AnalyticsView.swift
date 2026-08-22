@@ -414,10 +414,11 @@ struct AnalyticsView: View {
                     }
                     startLoad(forceRefresh: true)
                 } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .semibold))
-                        .rotationEffect(.degrees(refreshSpin))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    AppToolbarActionLabel(
+                        systemImage: "arrow.clockwise",
+                        rotation: refreshSpin,
+                        isBusy: vm.isLoading
+                    )
                 }
                 .disabled(vm.isLoading)
                 .accessibilityLabel(vm.isLoading ? "Refreshing analytics" : "Refresh analytics")

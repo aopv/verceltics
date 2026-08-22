@@ -245,6 +245,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
 
     let cornerRadius: CGFloat
     let isInteractive: Bool
+    let tint: Color
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -254,7 +255,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
             if isInteractive {
                 content
                     .glassEffect(
-                        .regular.tint(AppTheme.glassTint).interactive(),
+                        .regular.tint(tint).interactive(),
                         in: .rect(cornerRadius: cornerRadius)
                     )
                     .overlay { brandedGlassOutline(shape) }
@@ -262,7 +263,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
             } else {
                 content
                     .glassEffect(
-                        .regular.tint(AppTheme.glassTint),
+                        .regular.tint(tint),
                         in: .rect(cornerRadius: cornerRadius)
                     )
                     .overlay { brandedGlassOutline(shape) }
@@ -277,6 +278,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
                         shape.fill(.ultraThinMaterial)
                         shape.fill(AppTheme.canvas.opacity(0.38))
                     }
+                    shape.fill(tint)
                 }
                 .clipShape(shape)
                 .overlay { brandedGlassOutline(shape) }
@@ -310,11 +312,16 @@ extension View {
         modifier(ProviderSurfaceModifier(accent: accent, cornerRadius: cornerRadius))
     }
 
-    func nativeGlassSurface(cornerRadius: CGFloat, isInteractive: Bool = false) -> some View {
+    func nativeGlassSurface(
+        cornerRadius: CGFloat,
+        isInteractive: Bool = false,
+        tint: Color = AppTheme.glassTint
+    ) -> some View {
         modifier(
             NativeGlassSurfaceModifier(
                 cornerRadius: cornerRadius,
-                isInteractive: isInteractive
+                isInteractive: isInteractive,
+                tint: tint
             )
         )
     }
@@ -325,6 +332,154 @@ extension View {
     ) -> some View {
         frame(maxWidth: horizontalSizeClass == .regular ? width : .infinity)
             .frame(maxWidth: .infinity)
+    }
+
+    /// Applies the Verceltics palette and compact-corner language to native
+    /// buttons, menus, pickers, toolbars, and other system control chrome. The
+    /// controls continue to use their platform-provided materials and effects.
+    func appNativeControlTheme() -> some View {
+        tint(AppTheme.navigationAccent)
+            .buttonBorderShape(.roundedRectangle(radius: AppTheme.controlRadius))
+    }
+}
+
+/// A themed search field that remains real Liquid Glass on iOS 26. The ink
+/// outline belongs to the custom surface; system navigation glass is left to
+/// SwiftUI so it can continue to refract and animate natively.
+struct AppGlassSearchField: View {
+    @Binding private var text: String
+    @FocusState private var isFocused: Bool
+
+    let prompt: String
+    let accent: Color
+    let startsFocused: Bool
+    let focusRequestID: Int
+
+    init(
+        text: Binding<String>,
+        prompt: String,
+        accent: Color = AppTheme.navigationAccent,
+        startsFocused: Bool = false,
+        focusRequestID: Int = 0
+    ) {
+        _text = text
+        self.prompt = prompt
+        self.accent = accent
+        self.startsFocused = startsFocused
+        self.focusRequestID = focusRequestID
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 20, weight: .black))
+                .foregroundStyle(accent)
+                .accessibilityHidden(true)
+
+            TextField(prompt, text: $text)
+                .font(.body)
+                .foregroundStyle(AppTheme.textPrimary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isFocused)
+                .onSubmit { isFocused = false }
+                .accessibilityLabel(prompt)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(AppTheme.signalForeground)
+                        .frame(width: 28, height: 28)
+                        .background(accent)
+                        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .strokeBorder(AppTheme.strokeStrong, lineWidth: 1)
+                        }
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, text.isEmpty ? 16 : 4)
+        .frame(minHeight: 54)
+        .nativeGlassSurface(
+            cornerRadius: AppTheme.controlRadius,
+            isInteractive: true,
+            tint: accent.opacity(0.10)
+        )
+        .onAppear {
+            guard startsFocused else { return }
+            focusAfterLayout()
+        }
+        .onChange(of: focusRequestID) {
+            focusAfterLayout()
+        }
+    }
+
+    private func focusAfterLayout() {
+        Task { @MainActor in
+            await Task.yield()
+            isFocused = true
+        }
+    }
+}
+
+/// Branded label content for a native toolbar glass button. It intentionally
+/// draws no background, so the system-provided glass remains unobstructed.
+struct AppToolbarActionLabel: View {
+    let systemImage: String
+    var accent: Color = AppTheme.navigationAccent
+    var rotation: Double = 0
+    var isBusy = false
+
+    var body: some View {
+        Group {
+            if isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(accent)
+            } else {
+                VStack(spacing: 3) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 16, weight: .black))
+                        .symbolRenderingMode(.monochrome)
+                        .rotationEffect(.degrees(rotation))
+
+                    Rectangle()
+                        .fill(accent)
+                        .frame(width: 18, height: 2)
+                }
+                .foregroundStyle(AppTheme.textPrimary)
+            }
+        }
+        .frame(width: 44, height: 44)
+    }
+}
+
+/// Keeps the system tab bar and its Liquid Glass behavior while giving tab
+/// labels the same condensed utility typography and heavy symbols as content.
+struct AppTabLabel: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+
+    var body: some View {
+        Label {
+            Text(title)
+                .font(AppTheme.displayFont(.caption2))
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .black))
+                .symbolVariant(isSelected ? .fill : .none)
+        }
+        .foregroundStyle(isSelected ? AppTheme.navigationAccent : AppTheme.textPrimary)
     }
 }
 

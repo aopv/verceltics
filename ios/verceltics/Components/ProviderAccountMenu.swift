@@ -50,15 +50,15 @@ struct ProviderAccountMenu: View {
             HStack(spacing: 6) {
                 providerBadge(for: authManager.activeAccount)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(AppTheme.textTertiary)
+                    .font(.system(size: 8, weight: .black))
+                    .foregroundStyle(AppTheme.navigationAccent)
             }
             .frame(width: 56, height: 44)
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected account")
             .accessibilityValue(authManager.activeAccount?.name ?? "No active account")
         }
-        .tint(AppTheme.textPrimary)
+        .tint(AppTheme.navigationAccent)
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .hosting)
                 .presentationSizing(.page)

@@ -86,10 +86,10 @@ struct SitesView: View {
             .navigationTitle("Sites")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppThemedToolbarItem(placement: .topBarLeading) {
                     SiteAccountMenu()
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                AppThemedToolbarItem(placement: .topBarTrailing) {
                     Button(action: refreshActive) {
                         AppToolbarActionLabel(
                             systemImage: "arrow.clockwise",

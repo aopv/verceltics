@@ -275,7 +275,7 @@ struct ProjectsView: View {
             .navigationTitle("Vercel")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppThemedToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()
                 }
             }

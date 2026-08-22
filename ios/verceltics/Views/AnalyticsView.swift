@@ -407,7 +407,7 @@ struct AnalyticsView: View {
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            AppThemedToolbarItem(placement: .topBarTrailing) {
                 Button {
                     if !reduceMotion {
                         withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }

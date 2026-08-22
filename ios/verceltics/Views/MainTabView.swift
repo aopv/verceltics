@@ -65,25 +65,7 @@ struct MainTabView: View {
                 )
                     .id(activeHostingViewIdentity)
             } label: {
-                AppTabLabel(
-                    title: "Hosting",
-                    systemImage: "server.rack",
-                    isSelected: selectedTab == .hosting
-                )
-            }
-
-            Tab(value: MainTabDestination.search, role: .search) {
-                // Selecting the system search tab redirects to the last primary
-                // workspace and presents that workspace's existing search field.
-                // Keeping this destination inert prevents a second dashboard
-                // tree from issuing duplicate provider requests.
-                Color.clear
-            } label: {
-                AppTabLabel(
-                    title: "Search",
-                    systemImage: "magnifyingglass",
-                    isSelected: selectedTab == .search
-                )
+                Label("Hosting", systemImage: "server.rack")
             }
 
             Tab(value: MainTabDestination.registrars) {
@@ -92,11 +74,7 @@ struct MainTabView: View {
                     backgroundRefreshRequestID: registrarRefreshRequestID
                 )
             } label: {
-                AppTabLabel(
-                    title: "Registrars",
-                    systemImage: "globe.americas",
-                    isSelected: selectedTab == .registrars
-                )
+                Label("Registrars", systemImage: "globe.americas")
             }
 
             Tab(value: MainTabDestination.sites) {
@@ -105,26 +83,28 @@ struct MainTabView: View {
                     backgroundRefreshRequestID: sitesRefreshRequestID
                 )
             } label: {
-                AppTabLabel(
-                    title: "Sites",
-                    systemImage: "chart.xyaxis.line",
-                    isSelected: selectedTab == .sites
-                )
+                Label("Sites", systemImage: "chart.xyaxis.line")
             }
 
             Tab(value: MainTabDestination.about) {
                 AboutView()
             } label: {
-                AppTabLabel(
-                    title: "About",
-                    systemImage: "info.circle",
-                    isSelected: selectedTab == .about
-                )
+                Label("About", systemImage: "info.circle")
             }
             .badge(appUpdateChecker.isUpdateAvailable ? Text("") : nil)
         }
         .tabViewStyle(.sidebarAdaptable)
-        .tint(AppTheme.navigationAccent)
+        .toolbarVisibility(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            AppGlassNavigationBar(
+                selection: $selectedTab,
+                showsAboutBadge: appUpdateChecker.isUpdateAvailable,
+                searchAction: activateSearch
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+        }
         .onChange(of: selectedTab) { _, newValue in
             if newValue == .search {
                 let workspace = PrimaryWorkspace.restored(from: lastPrimaryWorkspace)
@@ -203,6 +183,18 @@ struct MainTabView: View {
         }
     }
 
+    private func activateSearch() {
+        let workspace = selectedTab.primaryWorkspace
+            ?? PrimaryWorkspace.restored(from: lastPrimaryWorkspace)
+        if selectedTab != workspace.destination {
+            selectedTab = workspace.destination
+        }
+        Task { @MainActor in
+            await Task.yield()
+            requestSearch(for: workspace)
+        }
+    }
+
     /// Rebuild provider-specific state when credentials are rotated in place.
     /// Account IDs intentionally remain stable during an update, so using the ID
     /// alone can leave an API client holding the previous credential.
@@ -213,6 +205,156 @@ struct MainTabView: View {
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: "&")
         return "\(account.id.uuidString)|\(account.token.hashValue)|\(metadata.hashValue)"
+    }
+}
+
+private struct AppGlassNavigationBar: View {
+    @Binding var selection: MainTabDestination
+    let showsAboutBadge: Bool
+    let searchAction: () -> Void
+
+    private let destinations: [MainTabDestination] = [
+        .hosting,
+        .registrars,
+        .sites,
+        .about,
+    ]
+
+    var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 10) {
+                    navigationContent
+                }
+            } else {
+                navigationContent
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Main navigation")
+    }
+
+    private var navigationContent: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 4) {
+                ForEach(destinations, id: \.self) { destination in
+                    navigationButton(for: destination)
+                }
+            }
+            .padding(5)
+            .frame(maxWidth: .infinity)
+            .frame(height: 70)
+            .nativeGlassSurface(
+                cornerRadius: 21,
+                tint: AppTheme.glassTint
+            )
+
+            Button(action: searchAction) {
+                VStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 21, weight: .black))
+                    Text("Search")
+                        .font(AppTheme.displayFont(.caption2))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(AppTheme.textPrimary)
+                .frame(width: 64, height: 70)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(AppTheme.navigationAccent)
+                        .frame(width: 26, height: 3)
+                        .offset(y: 7)
+                }
+            }
+            .buttonStyle(AppNavigationPressStyle())
+            .nativeGlassSurface(
+                cornerRadius: 21,
+                isInteractive: true,
+                tint: AppTheme.glassSelectedTint
+            )
+            .accessibilityLabel("Search current workspace")
+            .accessibilityHint("Opens search in the last selected provider workspace")
+        }
+    }
+
+    private func navigationButton(for destination: MainTabDestination) -> some View {
+        let isSelected = selection == destination
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
+        return Button {
+            withAnimation(.smooth(duration: 0.24)) {
+                selection = destination
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: destination.navigationSystemImage)
+                    .font(.system(size: 19, weight: .black))
+                    .symbolVariant(isSelected ? .fill : .none)
+                Text(destination.navigationTitle)
+                    .font(AppTheme.displayFont(.caption2))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            .foregroundStyle(isSelected ? AppTheme.signalForeground : AppTheme.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .background {
+                if isSelected {
+                    shape
+                        .strokeBorder(AppTheme.hardShadow, lineWidth: 2)
+                        .offset(x: 2, y: 3)
+                    shape.fill(AppTheme.signalFill)
+                    shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if showsAboutBadge && destination == .about {
+                    Circle()
+                        .fill(AppTheme.danger)
+                        .frame(width: 8, height: 8)
+                        .overlay {
+                            Circle().strokeBorder(AppTheme.strokeStrong, lineWidth: 1)
+                        }
+                        .offset(x: -6, y: 5)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(AppNavigationPressStyle())
+        .accessibilityLabel(destination.navigationTitle)
+        .accessibilityValue(isSelected ? "Selected" : "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct AppNavigationPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.78 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+private extension MainTabDestination {
+    var navigationTitle: String {
+        switch self {
+        case .hosting: "Hosting"
+        case .registrars: "Registrars"
+        case .sites: "Sites"
+        case .about: "About"
+        case .search: "Search"
+        }
+    }
+
+    var navigationSystemImage: String {
+        switch self {
+        case .hosting: "server.rack"
+        case .registrars: "globe.americas"
+        case .sites: "chart.xyaxis.line"
+        case .about: "info.circle"
+        case .search: "magnifyingglass"
+        }
     }
 }
 
@@ -249,7 +391,7 @@ private struct HostingEmptyStateView: View {
             .navigationTitle("Hosting")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppThemedToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()
                 }
             }

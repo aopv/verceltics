@@ -80,6 +80,11 @@ struct SiteAccountMenu: View {
                     .foregroundStyle(AppTheme.navigationAccent)
             }
             .frame(width: 44, height: 44)
+            .nativeGlassSurface(
+                cornerRadius: 13,
+                isInteractive: true,
+                tint: AppTheme.glassTint
+            )
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected site service")
             .accessibilityValue(store.activeAccount?.name ?? "No active site service")

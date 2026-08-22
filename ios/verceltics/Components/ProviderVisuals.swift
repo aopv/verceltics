@@ -2,8 +2,8 @@ import SwiftUI
 import UIKit
 
 /// Verceltics 3's "Soft Neo Utility" visual language. Content uses warm paper,
-/// strong ink outlines, signal orange, and restrained offset depth. Native
-/// navigation and transient controls keep their system Liquid Glass treatment.
+/// strong ink outlines, signal orange, and restrained offset depth. Navigation
+/// chrome uses the same language while retaining native Liquid Glass optics.
 enum AppTheme {
     private static func adaptive(light: UIColor, dark: UIColor) -> Color {
         Color(uiColor: UIColor { traits in
@@ -96,8 +96,12 @@ enum AppTheme {
         dark: UIColor(red: 0.34, green: 0.14, blue: 0.025, alpha: 0.88)
     )
     static let glassTint = adaptive(
-        light: UIColor(red: 1.0, green: 0.97, blue: 0.90, alpha: 0.14),
-        dark: UIColor.black.withAlphaComponent(0.46)
+        light: UIColor(red: 1.0, green: 0.92, blue: 0.76, alpha: 0.28),
+        dark: UIColor(red: 0.56, green: 0.20, blue: 0.035, alpha: 0.28)
+    )
+    static let glassSelectedTint = adaptive(
+        light: UIColor(red: 1.0, green: 0.38, blue: 0.035, alpha: 0.36),
+        dark: UIColor(red: 1.0, green: 0.42, blue: 0.08, alpha: 0.38)
     )
     static let skeleton = adaptive(
         light: UIColor.black.withAlphaComponent(0.070),
@@ -258,16 +262,16 @@ struct NativeGlassSurfaceModifier: ViewModifier {
                         .regular.tint(tint).interactive(),
                         in: .rect(cornerRadius: cornerRadius)
                     )
-                    .overlay { brandedGlassOutline(shape) }
                     .background { brandedGlassShadow(shape) }
+                    .overlay { brandedGlassOutline(shape) }
             } else {
                 content
                     .glassEffect(
                         .regular.tint(tint),
                         in: .rect(cornerRadius: cornerRadius)
                     )
-                    .overlay { brandedGlassOutline(shape) }
                     .background { brandedGlassShadow(shape) }
+                    .overlay { brandedGlassOutline(shape) }
             }
         } else {
             content
@@ -281,8 +285,8 @@ struct NativeGlassSurfaceModifier: ViewModifier {
                     shape.fill(tint)
                 }
                 .clipShape(shape)
-                .overlay { brandedGlassOutline(shape) }
                 .background { brandedGlassShadow(shape) }
+                .overlay { brandedGlassOutline(shape) }
         }
     }
 
@@ -291,15 +295,37 @@ struct NativeGlassSurfaceModifier: ViewModifier {
     }
 
     private func brandedGlassShadow(_ shape: RoundedRectangle) -> some View {
-        ZStack {
-            shape
-                .fill(AppTheme.hardShadow)
-                .offset(x: 3, y: 4)
-            shape
-                .fill(Color.black)
-                .blendMode(.destinationOut)
+        shape
+            .strokeBorder(AppTheme.hardShadow, lineWidth: 3)
+            .offset(x: 3, y: 4)
+    }
+}
+
+/// A toolbar item whose app-owned Liquid Glass surface is not wrapped in the
+/// system's generic shared toolbar glass. iOS 18-25 keep the standard grouping.
+struct AppThemedToolbarItem<Content: View>: ToolbarContent {
+    let placement: ToolbarItemPlacement
+    private let content: Content
+
+    init(
+        placement: ToolbarItemPlacement,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.placement = placement
+        self.content = content()
+    }
+
+    var body: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: placement) {
+                content
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: placement) {
+                content
+            }
         }
-        .compositingGroup()
     }
 }
 
@@ -431,8 +457,9 @@ struct AppGlassSearchField: View {
     }
 }
 
-/// Branded label content for a native toolbar glass button. It intentionally
-/// draws no background, so the system-provided glass remains unobstructed.
+/// Branded label content for an app-owned, interactive Liquid Glass toolbar
+/// control. The system's generic shared background is hidden by the enclosing
+/// `AppThemedToolbarItem`.
 struct AppToolbarActionLabel: View {
     let systemImage: String
     var accent: Color = AppTheme.navigationAccent
@@ -460,26 +487,11 @@ struct AppToolbarActionLabel: View {
             }
         }
         .frame(width: 44, height: 44)
-    }
-}
-
-/// Keeps the system tab bar and its Liquid Glass behavior while giving tab
-/// labels the same condensed utility typography and heavy symbols as content.
-struct AppTabLabel: View {
-    let title: String
-    let systemImage: String
-    let isSelected: Bool
-
-    var body: some View {
-        Label {
-            Text(title)
-                .font(AppTheme.displayFont(.caption2))
-        } icon: {
-            Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .black))
-                .symbolVariant(isSelected ? .fill : .none)
-        }
-        .foregroundStyle(isSelected ? AppTheme.navigationAccent : AppTheme.textPrimary)
+        .nativeGlassSurface(
+            cornerRadius: 13,
+            isInteractive: true,
+            tint: accent.opacity(0.24)
+        )
     }
 }
 

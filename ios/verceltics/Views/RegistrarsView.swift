@@ -122,7 +122,7 @@ struct RegistrarsView: View {
                     .navigationTitle("Registrars")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
+                        AppThemedToolbarItem(placement: .topBarLeading) {
                             RegistrarAccountMenu()
                         }
                     }
@@ -198,8 +198,8 @@ struct RegistrarDashboardView: View {
             .navigationTitle("Registrars")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
-                ToolbarItem(placement: .topBarTrailing) {
+                AppThemedToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
+                AppThemedToolbarItem(placement: .topBarTrailing) {
                     Button {
                         if !reduceMotion {
                             withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }

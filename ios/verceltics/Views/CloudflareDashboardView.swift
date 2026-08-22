@@ -570,7 +570,7 @@ struct CloudflareDashboardView: View {
             .navigationTitle("Cloudflare")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppThemedToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()
                 }
                 ToolbarItem(placement: .principal) {
@@ -580,7 +580,7 @@ struct CloudflareDashboardView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                AppThemedToolbarItem(placement: .topBarTrailing) {
                     Button {
                         if !reduceMotion {
                             withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }

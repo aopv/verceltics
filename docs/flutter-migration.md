@@ -46,7 +46,9 @@ project from a clean checkout. Set `FLUTTER_BIN` when Flutter is not in PATH;
 set `FLUTTER_CODESIGN_IDENTITY` when a developer machine has more than one
 valid signing identity with the same name. CI installs the pinned Flutter SDK,
 regenerates the package without signing, runs Flutter analysis and tests, and
-only then invokes `xcodebuild`.
+only then invokes `xcodebuild`. Command-line Xcode builds use
+`-hideShellScriptEnvironment` so the required Flutter scheme pre-action does
+not print the build environment into CI logs.
 
 Tag-triggered App Store archives use Xcode Cloud. Its executable
 `ios/ci_scripts/ci_post_clone.sh` installs the same pinned Flutter SDK into the

@@ -80,6 +80,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild test \
+            -hideShellScriptEnvironment \
             -project ios/verceltics.xcodeproj \
             -scheme verceltics \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \

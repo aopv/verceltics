@@ -5,7 +5,7 @@ import { ArrowUpRight } from "@/components/arrow-up-right";
 import { MobileNavigation } from "@/components/mobile-navigation";
 
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
-const GITHUB = "https://github.com/apoorvdarshan/verceltics";
+const GITHUB = "https://github.com/aopv/verceltics";
 
 export function SiteHeader() {
   return (

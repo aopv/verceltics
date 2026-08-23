@@ -86,7 +86,7 @@ Thanks for your interest in contributing! Here's how to get started.
 
 ## Reporting Issues
 
-Open an issue at [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues) with:
+Open an issue at [github.com/aopv/verceltics/issues](https://github.com/aopv/verceltics/issues) with:
 
 1. What happened
 2. What you expected

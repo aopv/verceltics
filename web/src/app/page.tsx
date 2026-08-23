@@ -9,7 +9,7 @@ import { SiteHeader } from "@/components/site-header";
 
 const SITE_URL = "https://verceltics.com";
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
-const GITHUB = "https://github.com/apoorvdarshan/verceltics";
+const GITHUB = "https://github.com/aopv/verceltics";
 const PUBLIC_PROFILES = [
   GITHUB,
   "https://www.producthunt.com/products/verceltics",

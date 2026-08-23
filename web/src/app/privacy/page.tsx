@@ -130,7 +130,7 @@ export default function Privacy() {
 
       <section id="contact">
         <h2>Contact</h2>
-        <p>For privacy questions or requests, email <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a>. Security vulnerabilities should follow the private reporting process in the project&apos;s <a href="https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md" rel="noreferrer" target="_blank">Security Policy</a>.</p>
+        <p>For privacy questions or requests, email <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a>. Security vulnerabilities should follow the private reporting process in the project&apos;s <a href="https://github.com/aopv/verceltics/blob/main/SECURITY.md" rel="noreferrer" target="_blank">Security Policy</a>.</p>
       </section>
     </LegalShell>
   );

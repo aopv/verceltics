@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "@/components/arrow-up-right";
 
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
-const GITHUB = "https://github.com/apoorvdarshan/verceltics";
+const GITHUB = "https://github.com/aopv/verceltics";
 
 const channelGroups = [
   {
@@ -33,7 +33,7 @@ const channelGroups = [
     links: [
       { label: "Ko-fi", detail: "Support development", href: "https://ko-fi.com/apoorvdarshan", mark: "/brands/kofi.svg", newTab: true },
       { label: "PayPal", detail: "Send support", href: "https://paypal.me/apoorvdarshan", mark: "/brands/paypal.svg", newTab: true },
-      { label: "Report issue", detail: "Open a ticket", href: "https://github.com/apoorvdarshan/verceltics/issues", mark: "/brands/issue.svg", newTab: true },
+      { label: "Report issue", detail: "Open a ticket", href: "https://github.com/aopv/verceltics/issues", mark: "/brands/issue.svg", newTab: true },
       { label: "Contact", detail: "Email Apoorv", href: "mailto:ad13dtu@gmail.com", mark: "/brands/email.svg", newTab: false },
     ],
   },

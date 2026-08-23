@@ -45,35 +45,15 @@ struct VercelticsApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if !paywallManager.hasCheckedEntitlements {
-                    ZStack {
-                        AppTheme.canvas.ignoresSafeArea()
-                        VStack(spacing: 14) {
-                            Image("AppLogo")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 64, height: 64)
-                                .accessibilityHidden(true)
-                            ProgressView()
-                                .tint(AppTheme.textSecondary)
-                            Text("Loading workspace")
-                                .font(.footnote)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                } else if !hasAnyConnection {
-                    FirstConnectionFlow(
-                        experience: firstLaunchExperience,
-                        hasAnyConnection: hasAnyConnection,
-                        hasActiveSubscription: paywallManager.hasActiveSubscription
-                    )
+#if DEBUG
+                if SharedUIDebugFixtures.showsRegistrarDomain {
+                    SharedUIDebugFixtures.registrarDomainView
                 } else {
-                    // Soft paywall: connection and workspace browsing stay
-                    // available; item details and provider actions gate inside
-                    // their owning views.
-                    MainTabView()
+                    appContent
                 }
+#else
+                appContent
+#endif
             }
             .environment(authManager)
             .environment(paywallManager)
@@ -90,6 +70,39 @@ struct VercelticsApp: App {
                     hasActiveSubscription: paywallManager.hasActiveSubscription
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private var appContent: some View {
+        if !paywallManager.hasCheckedEntitlements {
+            ZStack {
+                AppTheme.canvas.ignoresSafeArea()
+                VStack(spacing: 14) {
+                    Image("AppLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 64, height: 64)
+                        .accessibilityHidden(true)
+                    ProgressView()
+                        .tint(AppTheme.textSecondary)
+                    Text("Loading workspace")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        } else if !hasAnyConnection {
+            FirstConnectionFlow(
+                experience: firstLaunchExperience,
+                hasAnyConnection: hasAnyConnection,
+                hasActiveSubscription: paywallManager.hasActiveSubscription
+            )
+        } else {
+            // Soft paywall: connection and workspace browsing stay
+            // available; item details and provider actions gate inside
+            // their owning views.
+            MainTabView()
         }
     }
 }

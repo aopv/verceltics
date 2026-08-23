@@ -54,6 +54,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.1"
+          channel: stable
+          cache: true
+
+      - name: Generate Flutter iOS integration package
+        run: ./scripts/bootstrap_flutter_ios.sh
+
+      - name: Verify generated bridge is committed
+        run: |
+          git diff --exit-code -- \
+            shared_ui/lib/src/bridge/generated/verceltics_bridge.g.dart \
+            ios/verceltics/FlutterBridge/VercelticsBridge.g.swift
+
+      - name: Test shared Flutter UI
+        working-directory: shared_ui
+        run: |
+          flutter analyze
+          flutter test
+
       - name: Test iOS app
         run: |
           set -o pipefail

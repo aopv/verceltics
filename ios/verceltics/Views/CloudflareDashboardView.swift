@@ -596,6 +596,7 @@ struct CloudflareDashboardView: View {
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing Cloudflare" : "Refresh Cloudflare")
+                    .accessibilityIdentifier("topbar.refresh.hosting")
                     .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
                 }
             }

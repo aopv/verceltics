@@ -118,6 +118,7 @@ struct AboutView: View {
             .padding(.horizontal, 12)
             .background(AppTheme.surfaceRaised)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+            .accessibilityIdentifier("about.appearancePicker")
         } else {
             Picker("Appearance", selection: selection) {
                 ForEach(AppAppearance.allCases) { appearance in
@@ -126,6 +127,7 @@ struct AboutView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityIdentifier("about.appearancePicker")
         }
     }
 

@@ -132,10 +132,8 @@ struct PaywallView: View {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(AppTheme.textPrimary)
-                            .frame(width: 36, height: 36)
-                            .background(AppTheme.surfaceRaised, in: Circle())
+                            .frame(width: 44, height: 44)
                     }
-                    .buttonStyle(PressScaleButtonStyle())
                     .disabled(isPurchasing || isRestoring)
                     .accessibilityLabel("Close")
                     .accessibilityHint(

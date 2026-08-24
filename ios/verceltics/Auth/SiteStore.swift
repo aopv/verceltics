@@ -13,6 +13,7 @@ final class SiteStore {
     var refreshErrors: [UUID: String] = [:]
     private var refreshAttemptIDs: [UUID: UUID] = [:]
     private var accountPersistenceFailure: String?
+    private let persistsAccountChanges: Bool
 
     var isRefreshing: Bool {
         !refreshAttemptIDs.isEmpty
@@ -28,6 +29,7 @@ final class SiteStore {
     }
 
     init() {
+        persistsAccountChanges = true
         do {
             accounts = try KeychainHelper.getSiteIntegrationAccounts()
         } catch {
@@ -52,6 +54,25 @@ final class SiteStore {
             activeAccountID = first.id
             KeychainHelper.saveActiveSiteIntegrationAccountID(first.id)
         }
+    }
+
+    /// Creates an in-memory site store for deterministic UI fixtures. Account
+    /// and snapshot mutations never touch the device Keychain.
+    init(
+        ephemeralAccounts: [SiteIntegrationAccount],
+        activeAccountID: UUID? = nil,
+        snapshots: [UUID: SiteIntegrationSnapshot] = [:]
+    ) {
+        persistsAccountChanges = false
+        accounts = ephemeralAccounts
+        let accountIDs = Set(ephemeralAccounts.map(\.id))
+        let requestedID = activeAccountID ?? ephemeralAccounts.first?.id
+        if let requestedID, accountIDs.contains(requestedID) {
+            self.activeAccountID = requestedID
+        } else {
+            self.activeAccountID = ephemeralAccounts.first?.id
+        }
+        self.snapshots = snapshots.filter { accountIDs.contains($0.key) }
     }
 
     func connect(
@@ -121,7 +142,9 @@ final class SiteStore {
             } else {
                 updatedAccounts.append(connectedAccount)
             }
-            try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+            if persistsAccountChanges {
+                try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+            }
             AppMemoryCacheRegistry.resetAll()
 
             invalidateRefresh(for: connectedAccount.id)
@@ -130,7 +153,9 @@ final class SiteStore {
             snapshots[connectedAccount.id] = connectedSnapshot
             refreshErrors[connectedAccount.id] = nil
             error = nil
-            KeychainHelper.saveActiveSiteIntegrationAccountID(connectedAccount.id)
+            if persistsAccountChanges {
+                KeychainHelper.saveActiveSiteIntegrationAccountID(connectedAccount.id)
+            }
             persistSnapshots()
             return true
         } catch is CancellationError {
@@ -173,7 +198,9 @@ final class SiteStore {
               accounts.contains(where: { $0.id == id }) else { return }
         activeAccountID = id
         error = refreshErrors[id]
-        KeychainHelper.saveActiveSiteIntegrationAccountID(id)
+        if persistsAccountChanges {
+            KeychainHelper.saveActiveSiteIntegrationAccountID(id)
+        }
     }
 
     func clearTransientError() {
@@ -186,7 +213,9 @@ final class SiteStore {
         let updatedAccounts = accounts.filter { $0.id != id }
         guard updatedAccounts.count != accounts.count else { return }
         do {
-            try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+            if persistsAccountChanges {
+                try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+            }
         } catch {
             persistenceError = error.localizedDescription
             self.error = error.localizedDescription
@@ -200,7 +229,9 @@ final class SiteStore {
         refreshErrors[id] = nil
         if activeAccountID == id { activeAccountID = accounts.first?.id }
         updateVisibleRefreshError(preferredAccountID: activeAccountID)
-        KeychainHelper.saveActiveSiteIntegrationAccountID(activeAccountID)
+        if persistsAccountChanges {
+            KeychainHelper.saveActiveSiteIntegrationAccountID(activeAccountID)
+        }
         persistSnapshots()
     }
 
@@ -211,7 +242,9 @@ final class SiteStore {
     func removeAll() {
         guard ensureAccountPersistenceIsAvailable() else { return }
         do {
-            try KeychainHelper.saveSiteIntegrationAccounts([])
+            if persistsAccountChanges {
+                try KeychainHelper.saveSiteIntegrationAccounts([])
+            }
         } catch {
             persistenceError = error.localizedDescription
             self.error = error.localizedDescription
@@ -225,7 +258,9 @@ final class SiteStore {
         refreshErrors = [:]
         activeAccountID = nil
         error = nil
-        KeychainHelper.saveActiveSiteIntegrationAccountID(nil)
+        if persistsAccountChanges {
+            KeychainHelper.saveActiveSiteIntegrationAccountID(nil)
+        }
         persistSnapshots()
     }
 
@@ -329,7 +364,9 @@ final class SiteStore {
             }
             var updatedAccounts = accounts
             updatedAccounts[index] = updatedAccount
-            try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+            if persistsAccountChanges {
+                try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+            }
             accounts = updatedAccounts
         }
         return updatedAccount
@@ -408,7 +445,9 @@ final class SiteStore {
         updatedAccount.metadata.merge(discovered) { _, value in value }
         var updatedAccounts = accounts
         updatedAccounts[index] = updatedAccount
-        try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+        if persistsAccountChanges {
+            try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+        }
         guard isCurrentRefresh(attemptID, accountID: account.id) else { return }
         accounts = updatedAccounts
     }
@@ -447,6 +486,7 @@ final class SiteStore {
     }
 
     private func persistSnapshots() {
+        guard persistsAccountChanges else { return }
         let accountIDs = Set(accounts.map(\.id))
         do {
             try KeychainHelper.saveSiteIntegrationSnapshots(

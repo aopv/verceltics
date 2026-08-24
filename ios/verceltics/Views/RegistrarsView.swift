@@ -98,26 +98,26 @@ struct RegistrarsView: View {
                 NavigationStack {
                     ZStack {
                         AppTheme.canvas.ignoresSafeArea()
-                        VStack(spacing: 12) {
-                            if let error = store.error {
-                                AppFeedbackBanner(
-                                    title: "Saved registrar accounts need attention",
-                                    message: error,
-                                    icon: "lock.trianglebadge.exclamationmark.fill",
-                                    tint: AppTheme.danger
-                                )
-                            }
-                            AppEmptyState(
-                                icon: "globe.americas.fill",
-                                title: "No registrar account",
-                                message: "Connect a registrar to track expiry, renewal, privacy, locks, and nameservers.",
-                                actionTitle: "Connect registrar"
-                            ) {
-                                showConnection = true
+                        AppAdaptiveEmptyStateContainer {
+                            VStack(spacing: 12) {
+                                if let error = store.error {
+                                    AppFeedbackBanner(
+                                        title: "Saved registrar accounts need attention",
+                                        message: error,
+                                        icon: "lock.trianglebadge.exclamationmark.fill",
+                                        tint: AppTheme.danger
+                                    )
+                                }
+                                AppEmptyState(
+                                    icon: "globe.americas.fill",
+                                    title: "No registrar account",
+                                    message: "Connect a registrar to track expiry, renewal, privacy, locks, and nameservers.",
+                                    actionTitle: "Connect registrar"
+                                ) {
+                                    showConnection = true
+                                }
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .frame(maxWidth: 560)
                     }
                     .navigationTitle("Registrars")
                     .navigationBarTitleDisplayMode(.inline)
@@ -214,6 +214,7 @@ struct RegistrarDashboardView: View {
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing domains" : "Refresh domains")
+                    .accessibilityIdentifier("topbar.refresh.registrars")
                 }
             }
             .task { await viewModel.load() }

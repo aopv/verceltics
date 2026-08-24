@@ -182,6 +182,7 @@ struct LoginView: View {
         // while allowing the actual catalog content to scale without a cap.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel("Connection type")
+        .accessibilityIdentifier("connection.categoryPicker")
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {

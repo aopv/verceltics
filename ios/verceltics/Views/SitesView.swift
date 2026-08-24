@@ -15,6 +15,7 @@ struct SitesView: View {
     var startWithSearch = false
     var searchRequestID = 0
     var backgroundRefreshRequestID = 0
+    var performsAutomaticRefresh = true
 
     @State private var searchText = ""
     @State private var showingConnection = false
@@ -99,12 +100,15 @@ struct SitesView: View {
                     }
                     .disabled(isRefreshingActiveAccount || activeAccount == nil)
                     .accessibilityLabel(isRefreshingActiveAccount ? "Refreshing selected site service" : "Refresh selected site service")
+                    .accessibilityIdentifier("topbar.refresh.sites")
                 }
             }
             .task(id: siteAccountIdentity) {
+                guard performsAutomaticRefresh else { return }
                 await loadActive(force: false)
             }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
+                guard performsAutomaticRefresh else { return }
                 Task { await loadActive(force: false) }
             }
             .sheet(isPresented: $showingConnection) {
@@ -229,27 +233,27 @@ struct SitesView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            if let error = persistenceError {
-                AppFeedbackBanner(
-                    title: "Saved site services need attention",
-                    message: error,
-                    icon: "lock.trianglebadge.exclamationmark.fill",
-                    tint: AppTheme.danger
-                )
-            }
+        AppAdaptiveEmptyStateContainer {
+            VStack(spacing: 10) {
+                if let error = persistenceError {
+                    AppFeedbackBanner(
+                        title: "Saved site services need attention",
+                        message: error,
+                        icon: "lock.trianglebadge.exclamationmark.fill",
+                        tint: AppTheme.danger
+                    )
+                }
 
-            AppEmptyState(
-                icon: "chart.xyaxis.line",
-                title: "Connect a site service",
-                message: "View search, analytics, performance, and uptime providers in separate focused dashboards.",
-                actionTitle: "Connect a service"
-            ) {
-                showingConnection = true
+                AppEmptyState(
+                    icon: "chart.xyaxis.line",
+                    title: "Connect a site service",
+                    message: "View search, analytics, performance, and uptime providers in separate focused dashboards.",
+                    actionTitle: "Connect a service"
+                ) {
+                    showingConnection = true
+                }
             }
         }
-        .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-        .appContentWidth(560, horizontalSizeClass: horizontalSizeClass)
     }
 
     @ViewBuilder

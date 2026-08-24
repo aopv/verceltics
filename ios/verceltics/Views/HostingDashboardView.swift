@@ -156,6 +156,7 @@ struct HostingDashboardView: View {
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing \(provider.displayName)" : "Refresh \(provider.displayName)")
+                    .accessibilityIdentifier("topbar.refresh.hosting")
                 }
             }
             .task { await viewModel.load() }

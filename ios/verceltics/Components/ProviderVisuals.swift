@@ -37,11 +37,11 @@ enum AppTheme {
     )
     static let stroke = adaptive(
         light: UIColor.black.withAlphaComponent(0.94),
-        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.72)
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.42)
     )
     static let strokeStrong = adaptive(
         light: UIColor.black,
-        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.90)
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.64)
     )
     static let strokeSoft = adaptive(
         light: UIColor.black.withAlphaComponent(0.25),
@@ -93,7 +93,7 @@ enum AppTheme {
     )
     static let hardShadow = adaptive(
         light: UIColor.black.withAlphaComponent(0.80),
-        dark: UIColor(red: 0.34, green: 0.14, blue: 0.025, alpha: 0.88)
+        dark: UIColor.black.withAlphaComponent(0.78)
     )
     static let glassTint = adaptive(
         light: UIColor(red: 1.0, green: 0.92, blue: 0.76, alpha: 0.28),
@@ -102,6 +102,14 @@ enum AppTheme {
     static let glassSelectedTint = adaptive(
         light: UIColor(red: 1.0, green: 0.38, blue: 0.035, alpha: 0.36),
         dark: UIColor(red: 1.0, green: 0.42, blue: 0.08, alpha: 0.38)
+    )
+    static let glassOutline = adaptive(
+        light: UIColor.black,
+        dark: UIColor(red: 0.975, green: 0.949, blue: 0.894, alpha: 0.32)
+    )
+    static let glassShadow = adaptive(
+        light: UIColor.black.withAlphaComponent(0.80),
+        dark: UIColor.black.withAlphaComponent(0.50)
     )
     static let skeleton = adaptive(
         light: UIColor.black.withAlphaComponent(0.070),
@@ -153,6 +161,42 @@ enum AppLayout {
     }
 }
 
+/// Keeps compact empty states vertically centered while making their complete
+/// message and action scrollable at accessibility text sizes.
+struct AppAdaptiveEmptyStateContainer<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private let maxWidth: CGFloat
+    private let content: Content
+
+    init(
+        maxWidth: CGFloat = 560,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.maxWidth = maxWidth
+        self.content = content()
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            ScrollView {
+                content
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 24)
+                    .frame(maxWidth: maxWidth)
+                    .frame(maxWidth: .infinity)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
+        } else {
+            content
+                .padding(.horizontal, 16)
+                .frame(maxWidth: maxWidth)
+        }
+    }
+}
+
 struct AppAdaptiveTwoPane<Primary: View, Secondary: View>: View {
     private let primary: Primary
     private let secondary: Secondary
@@ -191,6 +235,8 @@ struct AppAdaptiveTwoPane<Primary: View, Secondary: View>: View {
 }
 
 struct AppSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     var cornerRadius: CGFloat = AppTheme.panelRadius
     var raised = false
 
@@ -202,18 +248,25 @@ struct AppSurfaceModifier: ViewModifier {
             .overlay {
                 shape.strokeBorder(
                     raised ? AppTheme.strokeStrong : AppTheme.stroke,
-                    lineWidth: raised ? 2 : 1.75
+                    lineWidth: colorScheme == .dark
+                        ? (raised ? 1.5 : 1.15)
+                        : (raised ? 2 : 1.75)
                 )
             }
             .background {
                 shape
                     .fill(raised ? AppTheme.shadow : AppTheme.hardShadow)
-                    .offset(x: raised ? 4 : 3, y: raised ? 4 : 3)
+                    .offset(
+                        x: colorScheme == .dark ? (raised ? 3 : 2) : (raised ? 4 : 3),
+                        y: colorScheme == .dark ? (raised ? 3 : 2) : (raised ? 4 : 3)
+                    )
             }
     }
 }
 
 struct ProviderSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     let accent: Color
     var cornerRadius: CGFloat = AppTheme.panelRadius
 
@@ -229,7 +282,10 @@ struct ProviderSurfaceModifier: ViewModifier {
             }
             .clipShape(shape)
             .overlay {
-                shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 2)
+                shape.strokeBorder(
+                    AppTheme.strokeStrong,
+                    lineWidth: colorScheme == .dark ? 1.5 : 2
+                )
             }
             .overlay(alignment: .leading) {
                 Rectangle()
@@ -239,13 +295,17 @@ struct ProviderSurfaceModifier: ViewModifier {
             .background {
                 shape
                     .fill(AppTheme.hardShadow)
-                    .offset(x: 4, y: 4)
+                    .offset(
+                        x: colorScheme == .dark ? 3 : 4,
+                        y: colorScheme == .dark ? 3 : 4
+                    )
             }
     }
 }
 
 struct NativeGlassSurfaceModifier: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
 
     let cornerRadius: CGFloat
     let isInteractive: Bool
@@ -254,12 +314,13 @@ struct NativeGlassSurfaceModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let brandedTint = tint.opacity(colorScheme == .dark ? 0.72 : 1)
 
         if #available(iOS 26.0, *) {
             if isInteractive {
                 content
                     .glassEffect(
-                        .regular.tint(tint).interactive(),
+                        .regular.tint(brandedTint).interactive(),
                         in: .rect(cornerRadius: cornerRadius)
                     )
                     .background { brandedGlassShadow(shape) }
@@ -267,7 +328,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
             } else {
                 content
                     .glassEffect(
-                        .regular.tint(tint),
+                        .regular.tint(brandedTint),
                         in: .rect(cornerRadius: cornerRadius)
                     )
                     .background { brandedGlassShadow(shape) }
@@ -282,7 +343,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
                         shape.fill(.ultraThinMaterial)
                         shape.fill(AppTheme.canvas.opacity(0.38))
                     }
-                    shape.fill(tint)
+                    shape.fill(brandedTint)
                 }
                 .clipShape(shape)
                 .background { brandedGlassShadow(shape) }
@@ -291,18 +352,27 @@ struct NativeGlassSurfaceModifier: ViewModifier {
     }
 
     private func brandedGlassOutline(_ shape: RoundedRectangle) -> some View {
-        shape.strokeBorder(AppTheme.strokeStrong, lineWidth: 1.75)
+        shape.strokeBorder(
+            AppTheme.glassOutline,
+            lineWidth: colorScheme == .dark ? 1.25 : 1.75
+        )
     }
 
     private func brandedGlassShadow(_ shape: RoundedRectangle) -> some View {
         shape
-            .strokeBorder(AppTheme.hardShadow, lineWidth: 3)
-            .offset(x: 3, y: 4)
+            .strokeBorder(
+                AppTheme.glassShadow,
+                lineWidth: colorScheme == .dark ? 2 : 3
+            )
+            .offset(
+                x: colorScheme == .dark ? 2 : 3,
+                y: colorScheme == .dark ? 3 : 4
+            )
     }
 }
 
-/// A toolbar item whose app-owned Liquid Glass surface is not wrapped in the
-/// system's generic shared toolbar glass. iOS 18-25 keep the standard grouping.
+/// A branded toolbar item whose Liquid Glass surface remains owned by SwiftUI's
+/// native toolbar. Its label supplies only the app's icon treatment and sizing.
 struct AppThemedToolbarItem<Content: View>: ToolbarContent {
     let placement: ToolbarItemPlacement
     private let content: Content
@@ -316,15 +386,8 @@ struct AppThemedToolbarItem<Content: View>: ToolbarContent {
     }
 
     var body: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: placement) {
-                content
-            }
-            .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: placement) {
-                content
-            }
+        ToolbarItem(placement: placement) {
+            content
         }
     }
 }
@@ -411,6 +474,7 @@ struct AppGlassSearchField: View {
                 .focused($isFocused)
                 .onSubmit { isFocused = false }
                 .accessibilityLabel(prompt)
+                .accessibilityIdentifier("workspaceSearch.input")
 
             if !text.isEmpty {
                 Button {
@@ -430,6 +494,7 @@ struct AppGlassSearchField: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
+                .accessibilityIdentifier("workspaceSearch.clear")
             }
         }
         .padding(.leading, 16)
@@ -457,9 +522,9 @@ struct AppGlassSearchField: View {
     }
 }
 
-/// Branded label content for an app-owned, interactive Liquid Glass toolbar
-/// control. The system's generic shared background is hidden by the enclosing
-/// `AppThemedToolbarItem`.
+/// Branded label content for a native Liquid Glass toolbar control. The label
+/// intentionally draws no material so the toolbar supplies exactly one glass
+/// surface around it.
 struct AppToolbarActionLabel: View {
     let systemImage: String
     var accent: Color = AppTheme.navigationAccent
@@ -487,11 +552,7 @@ struct AppToolbarActionLabel: View {
             }
         }
         .frame(width: 44, height: 44)
-        .nativeGlassSurface(
-            cornerRadius: 13,
-            isInteractive: true,
-            tint: accent.opacity(0.24)
-        )
+        .contentShape(Rectangle())
     }
 }
 

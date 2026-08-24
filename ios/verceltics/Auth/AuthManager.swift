@@ -10,6 +10,7 @@ final class AuthManager {
     var isLoading = false
     var error: String?
     private var accountPersistenceFailure: String?
+    private let persistsAccountChanges: Bool
 
     var isAuthenticated: Bool {
         activeAccount != nil
@@ -48,6 +49,7 @@ final class AuthManager {
     }
 
     init() {
+        persistsAccountChanges = true
         do {
             self.accounts = try KeychainHelper.getAccounts()
         } catch {
@@ -78,6 +80,22 @@ final class AuthManager {
         Task {
             await refreshAccountProfiles()
         }
+    }
+
+    /// Creates an in-memory account store for deterministic UI fixtures. No
+    /// Keychain reads, writes, or profile refresh requests are performed.
+    init(
+        ephemeralAccounts: [VercelAccount],
+        activeAccountID: UUID? = nil,
+        accountsWithLongAnalyticsHistory: Set<UUID> = []
+    ) {
+        persistsAccountChanges = false
+        accounts = ephemeralAccounts
+        let requestedID = activeAccountID ?? ephemeralAccounts.first?.id
+        activeAccountId = ephemeralAccounts.contains { $0.id == requestedID }
+            ? requestedID
+            : ephemeralAccounts.first?.id
+        self.accountsWithLongAnalyticsHistory = accountsWithLongAnalyticsHistory
     }
 
     func login(token: String) async {
@@ -283,6 +301,7 @@ final class AuthManager {
     }
 
     func refreshAccountProfiles() async {
+        guard persistsAccountChanges else { return }
         guard ensureAccountPersistenceIsAvailable() else { return }
         let savedAccounts = accounts
         guard !savedAccounts.isEmpty else { return }
@@ -350,7 +369,9 @@ final class AuthManager {
         guard activeAccountId != id,
               accounts.contains(where: { $0.id == id }) else { return }
         activeAccountId = id
-        KeychainHelper.saveActiveAccountId(id)
+        if persistsAccountChanges {
+            KeychainHelper.saveActiveAccountId(id)
+        }
     }
 
     func hasLongAnalyticsHistory(for id: UUID?) -> Bool {
@@ -361,7 +382,9 @@ final class AuthManager {
     func markLongAnalyticsHistoryAvailable(for id: UUID?) {
         guard let id else { return }
         accountsWithLongAnalyticsHistory.insert(id)
-        KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
+        if persistsAccountChanges {
+            KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
+        }
     }
 
     func removeAccount(id: UUID) {
@@ -372,7 +395,9 @@ final class AuthManager {
         do {
             try persistAccounts(updatedAccounts, activeAccountID: updatedActiveID)
             accountsWithLongAnalyticsHistory.remove(id)
-            KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
+            if persistsAccountChanges {
+                KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -389,7 +414,9 @@ final class AuthManager {
         do {
             try persistAccounts([], activeAccountID: nil)
             accountsWithLongAnalyticsHistory.removeAll()
-            KeychainHelper.saveLongAnalyticsHistoryAccountIds([])
+            if persistsAccountChanges {
+                KeychainHelper.saveLongAnalyticsHistoryAccountIds([])
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -405,11 +432,15 @@ final class AuthManager {
         _ updatedAccounts: [VercelAccount],
         activeAccountID updatedActiveID: UUID?
     ) throws {
-        try KeychainHelper.saveAccounts(updatedAccounts)
+        if persistsAccountChanges {
+            try KeychainHelper.saveAccounts(updatedAccounts)
+        }
         AppMemoryCacheRegistry.resetAll()
         accounts = updatedAccounts
         activeAccountId = updatedActiveID
-        KeychainHelper.saveActiveAccountId(updatedActiveID)
+        if persistsAccountChanges {
+            KeychainHelper.saveActiveAccountId(updatedActiveID)
+        }
     }
 
     private enum AccountProfileUpdate {

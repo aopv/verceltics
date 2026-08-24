@@ -49,10 +49,18 @@ struct MainTabView: View {
     @State private var hostingRefreshRequestID = 0
     @State private var registrarRefreshRequestID = 0
     @State private var sitesRefreshRequestID = 0
+    private let performsUpdateCheck: Bool
+    private let performsAutomaticRefresh: Bool
 
-    init() {
+    init(
+        performsUpdateCheck: Bool = true,
+        performsAutomaticRefresh: Bool = true,
+        initialWorkspace: PrimaryWorkspace? = nil
+    ) {
+        self.performsUpdateCheck = performsUpdateCheck
+        self.performsAutomaticRefresh = performsAutomaticRefresh
         let storedValue = UserDefaults.standard.string(forKey: lastPrimaryWorkspaceKey)
-        let workspace = PrimaryWorkspace.restored(from: storedValue)
+        let workspace = initialWorkspace ?? PrimaryWorkspace.restored(from: storedValue)
         _selectedTab = State(initialValue: workspace.destination)
     }
 
@@ -64,6 +72,8 @@ struct MainTabView: View {
                     backgroundRefreshRequestID: hostingRefreshRequestID
                 )
                     .id(activeHostingViewIdentity)
+                    .appTabContent()
+                    .accessibilityIdentifier("screen.hosting")
             } label: {
                 Label("Hosting", systemImage: "server.rack")
             }
@@ -73,6 +83,8 @@ struct MainTabView: View {
                     searchRequestID: registrarSearchRequestID,
                     backgroundRefreshRequestID: registrarRefreshRequestID
                 )
+                .appTabContent()
+                .accessibilityIdentifier("screen.registrars")
             } label: {
                 Label("Registrars", systemImage: "globe.americas")
             }
@@ -80,21 +92,25 @@ struct MainTabView: View {
             Tab(value: MainTabDestination.sites) {
                 SitesView(
                     searchRequestID: sitesSearchRequestID,
-                    backgroundRefreshRequestID: sitesRefreshRequestID
+                    backgroundRefreshRequestID: sitesRefreshRequestID,
+                    performsAutomaticRefresh: performsAutomaticRefresh
                 )
+                .appTabContent()
+                .accessibilityIdentifier("screen.sites")
             } label: {
                 Label("Sites", systemImage: "chart.xyaxis.line")
             }
 
             Tab(value: MainTabDestination.about) {
                 AboutView()
+                    .appTabContent()
+                    .accessibilityIdentifier("screen.about")
             } label: {
                 Label("About", systemImage: "info.circle")
             }
             .badge(appUpdateChecker.isUpdateAvailable ? Text("") : nil)
         }
         .tabViewStyle(.sidebarAdaptable)
-        .toolbarVisibility(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             AppGlassNavigationBar(
                 selection: $selectedTab,
@@ -124,6 +140,7 @@ struct MainTabView: View {
             requestBackgroundRefreshForCurrentWorkspace()
         }
         .task {
+            guard performsUpdateCheck else { return }
             await appUpdateChecker.checkForUpdates()
         }
     }
@@ -212,6 +229,8 @@ private struct AppGlassNavigationBar: View {
     @Binding var selection: MainTabDestination
     let showsAboutBadge: Bool
     let searchAction: () -> Void
+    @ScaledMetric(relativeTo: .caption2) private var scaledDockHeight: CGFloat = 62
+    @ScaledMetric(relativeTo: .caption2) private var scaledSearchWidth: CGFloat = 60
 
     private let destinations: [MainTabDestination] = [
         .hosting,
@@ -232,6 +251,7 @@ private struct AppGlassNavigationBar: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Main navigation")
+        .accessibilityIdentifier("mainNavigation.dock")
     }
 
     private var navigationContent: some View {
@@ -243,9 +263,10 @@ private struct AppGlassNavigationBar: View {
             }
             .padding(5)
             .frame(maxWidth: .infinity)
-            .frame(height: 70)
+            .frame(height: dockHeight)
             .nativeGlassSurface(
-                cornerRadius: 21,
+                cornerRadius: 19,
+                isInteractive: true,
                 tint: AppTheme.glassTint
             )
 
@@ -256,9 +277,11 @@ private struct AppGlassNavigationBar: View {
                     Text("Search")
                         .font(AppTheme.displayFont(.caption2))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 }
                 .foregroundStyle(AppTheme.textPrimary)
-                .frame(width: 64, height: 70)
+                .frame(width: searchWidth, height: dockHeight)
                 .overlay(alignment: .top) {
                     Rectangle()
                         .fill(AppTheme.navigationAccent)
@@ -268,13 +291,22 @@ private struct AppGlassNavigationBar: View {
             }
             .buttonStyle(AppNavigationPressStyle())
             .nativeGlassSurface(
-                cornerRadius: 21,
+                cornerRadius: 19,
                 isInteractive: true,
                 tint: AppTheme.glassSelectedTint
             )
             .accessibilityLabel("Search current workspace")
             .accessibilityHint("Opens search in the last selected provider workspace")
+            .accessibilityIdentifier("mainNavigation.search")
         }
+    }
+
+    private var dockHeight: CGFloat {
+        min(max(scaledDockHeight, 62), 76)
+    }
+
+    private var searchWidth: CGFloat {
+        min(max(scaledSearchWidth, 60), 72)
     }
 
     private func navigationButton(for destination: MainTabDestination) -> some View {
@@ -294,9 +326,10 @@ private struct AppGlassNavigationBar: View {
                     .font(AppTheme.displayFont(.caption2))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
             .foregroundStyle(isSelected ? AppTheme.signalForeground : AppTheme.textPrimary)
-            .frame(maxWidth: .infinity, minHeight: 58)
+            .frame(maxWidth: .infinity, minHeight: dockHeight - 10)
             .background {
                 if isSelected {
                     shape
@@ -324,6 +357,7 @@ private struct AppGlassNavigationBar: View {
         .accessibilityLabel(destination.navigationTitle)
         .accessibilityValue(isSelected ? "Selected" : "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("mainNavigation.\(destination.navigationIdentifier)")
     }
 }
 
@@ -356,6 +390,25 @@ private extension MainTabDestination {
         case .search: "magnifyingglass"
         }
     }
+
+    var navigationIdentifier: String {
+        switch self {
+        case .hosting: "hosting"
+        case .registrars: "registrars"
+        case .sites: "sites"
+        case .about: "about"
+        case .search: "search"
+        }
+    }
+}
+
+private extension View {
+    /// Tab-bar visibility is a content preference. Applying it to every tab root
+    /// ensures the system bar remains hidden while the custom Liquid Glass dock
+    /// is the app's only primary navigation surface.
+    func appTabContent() -> some View {
+        toolbarVisibility(.hidden, for: .tabBar)
+    }
 }
 
 private struct HostingEmptyStateView: View {
@@ -367,26 +420,26 @@ private struct HostingEmptyStateView: View {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
 
-                VStack(spacing: 12) {
-                    if let error = authManager.error {
-                        AppFeedbackBanner(
-                            title: "Saved hosting accounts need attention",
-                            message: error,
-                            icon: "lock.trianglebadge.exclamationmark.fill",
-                            tint: AppTheme.danger
-                        )
-                    }
-                    AppEmptyState(
-                        icon: "server.rack",
-                        title: "No hosting account",
-                        message: "Connect a hosting platform to see projects, deployments, logs, domains, and analytics.",
-                        actionTitle: "Connect hosting"
-                    ) {
-                        showConnection = true
+                AppAdaptiveEmptyStateContainer {
+                    VStack(spacing: 12) {
+                        if let error = authManager.error {
+                            AppFeedbackBanner(
+                                title: "Saved hosting accounts need attention",
+                                message: error,
+                                icon: "lock.trianglebadge.exclamationmark.fill",
+                                tint: AppTheme.danger
+                            )
+                        }
+                        AppEmptyState(
+                            icon: "server.rack",
+                            title: "No hosting account",
+                            message: "Connect a hosting platform to see projects, deployments, logs, domains, and analytics.",
+                            actionTitle: "Connect hosting"
+                        ) {
+                            showConnection = true
+                        }
                     }
                 }
-                .padding(.horizontal, 16)
-                .frame(maxWidth: 560)
             }
             .navigationTitle("Hosting")
             .navigationBarTitleDisplayMode(.inline)

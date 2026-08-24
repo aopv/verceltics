@@ -54,16 +54,12 @@ struct ProviderAccountMenu: View {
                     .foregroundStyle(AppTheme.navigationAccent)
             }
             .frame(width: 56, height: 44)
-            .nativeGlassSurface(
-                cornerRadius: 13,
-                isInteractive: true,
-                tint: AppTheme.glassTint
-            )
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected account")
             .accessibilityValue(authManager.activeAccount?.name ?? "No active account")
         }
         .tint(AppTheme.navigationAccent)
+        .accessibilityIdentifier("topbar.account.hosting")
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .hosting)
                 .presentationSizing(.page)

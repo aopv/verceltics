@@ -9,12 +9,14 @@ final class RegistrarStore {
     var isConnecting = false
     var error: String?
     private var accountPersistenceFailure: String?
+    private let persistsAccountChanges: Bool
 
     var activeAccount: RegistrarAccount? {
         accounts.first { $0.id == activeAccountID }
     }
 
     init() {
+        persistsAccountChanges = true
         do {
             accounts = try KeychainHelper.getRegistrarAccounts()
         } catch {
@@ -27,6 +29,19 @@ final class RegistrarStore {
             activeAccountID = first.id
             KeychainHelper.saveActiveRegistrarAccountID(first.id)
         }
+    }
+
+    /// Creates an in-memory registrar store for deterministic UI fixtures.
+    init(
+        ephemeralAccounts: [RegistrarAccount],
+        activeAccountID: UUID? = nil
+    ) {
+        persistsAccountChanges = false
+        accounts = ephemeralAccounts
+        let requestedID = activeAccountID ?? ephemeralAccounts.first?.id
+        self.activeAccountID = ephemeralAccounts.contains { $0.id == requestedID }
+            ? requestedID
+            : ephemeralAccounts.first?.id
     }
 
     func connect(
@@ -87,7 +102,9 @@ final class RegistrarStore {
         guard activeAccountID != id,
               accounts.contains(where: { $0.id == id }) else { return }
         activeAccountID = id
-        KeychainHelper.saveActiveRegistrarAccountID(id)
+        if persistsAccountChanges {
+            KeychainHelper.saveActiveRegistrarAccountID(id)
+        }
     }
 
     func removeAccount(id: UUID) {
@@ -157,10 +174,14 @@ final class RegistrarStore {
         _ updatedAccounts: [RegistrarAccount],
         activeAccountID updatedActiveID: UUID?
     ) throws {
-        try KeychainHelper.saveRegistrarAccounts(updatedAccounts)
+        if persistsAccountChanges {
+            try KeychainHelper.saveRegistrarAccounts(updatedAccounts)
+        }
         AppMemoryCacheRegistry.resetAll()
         accounts = updatedAccounts
         activeAccountID = updatedActiveID
-        KeychainHelper.saveActiveRegistrarAccountID(updatedActiveID)
+        if persistsAccountChanges {
+            KeychainHelper.saveActiveRegistrarAccountID(updatedActiveID)
+        }
     }
 }

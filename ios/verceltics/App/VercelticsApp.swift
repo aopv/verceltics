@@ -3,15 +3,31 @@ import UIKit
 
 @main
 struct VercelticsApp: App {
-    @State private var authManager = AuthManager()
+    @State private var authManager: AuthManager
     @State private var paywallManager = PaywallManager()
     @State private var appUpdateChecker = AppUpdateChecker()
     @State private var appearanceStore = AppAppearanceStore()
-    @State private var registrarStore = RegistrarStore()
-    @State private var siteStore = SiteStore()
+    @State private var registrarStore: RegistrarStore
+    @State private var siteStore: SiteStore
     @State private var firstLaunchExperience = FirstLaunchExperienceStore()
 
     init() {
+#if DEBUG
+        if SharedUIDebugFixtures.usesIsolatedAccountStores {
+            _authManager = State(initialValue: AuthManager(ephemeralAccounts: []))
+            _registrarStore = State(initialValue: RegistrarStore(ephemeralAccounts: []))
+            _siteStore = State(initialValue: SharedUIDebugFixtures.makeSiteStore())
+        } else {
+            _authManager = State(initialValue: AuthManager())
+            _registrarStore = State(initialValue: RegistrarStore())
+            _siteStore = State(initialValue: SiteStore())
+        }
+#else
+        _authManager = State(initialValue: AuthManager())
+        _registrarStore = State(initialValue: RegistrarStore())
+        _siteStore = State(initialValue: SiteStore())
+#endif
+
         let segmentedControl = UISegmentedControl.appearance()
         segmentedControl.selectedSegmentTintColor = UIColor(AppTheme.signalFill)
         segmentedControl.setTitleTextAttributes(
@@ -48,6 +64,8 @@ struct VercelticsApp: App {
 #if DEBUG
                 if SharedUIDebugFixtures.showsRegistrarDomain {
                     SharedUIDebugFixtures.registrarDomainView
+                } else if SharedUIDebugFixtures.showsMainNavigation {
+                    SharedUIDebugFixtures.mainNavigationView
                 } else {
                     appContent
                 }
@@ -64,6 +82,9 @@ struct VercelticsApp: App {
             .appNativeControlTheme()
             .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
             .task(id: firstLaunchMigrationState) {
+#if DEBUG
+                guard !SharedUIDebugFixtures.usesIsolatedAccountStores else { return }
+#endif
                 guard paywallManager.hasCheckedEntitlements else { return }
                 firstLaunchExperience.migrateIfNeeded(
                     hasAnyConnection: hasAnyConnection,

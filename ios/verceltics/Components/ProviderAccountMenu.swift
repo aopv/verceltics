@@ -47,14 +47,10 @@ struct ProviderAccountMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            AppToolbarMenuLabel {
                 providerBadge(for: authManager.activeAccount)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(AppTheme.navigationAccent)
             }
-            .frame(width: 56, height: 44)
-            .contentShape(Rectangle())
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Switch connected account")
             .accessibilityValue(authManager.activeAccount?.name ?? "No active account")
         }
@@ -147,7 +143,7 @@ struct ProviderAccountMenu: View {
         } else {
             Image(systemName: "server.rack")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.textPrimary)
+                .foregroundStyle(AppTheme.navigationAccent)
         }
     }
 }

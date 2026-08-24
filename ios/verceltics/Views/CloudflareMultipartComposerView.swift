@@ -84,7 +84,7 @@ struct CloudflareMultipartComposerView: View {
         .navigationTitle("Multipart Body")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
+            AppThemedToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
             }
         }

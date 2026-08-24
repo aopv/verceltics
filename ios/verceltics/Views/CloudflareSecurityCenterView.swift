@@ -794,10 +794,10 @@ private struct CloudflareAccessRuleEditor: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppThemedToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppThemedToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
                         isConfirming = true
                     }

@@ -95,7 +95,7 @@ struct RegistrarConnectionView: View {
             .navigationTitle("Registrars")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                AppThemedToolbarItem(placement: .topBarTrailing) {
                     Button("Close") { dismiss() }.foregroundStyle(AppTheme.textPrimary)
                 }
             }

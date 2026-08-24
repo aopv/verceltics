@@ -886,7 +886,7 @@ private struct CloudflareZoneSettingEditor: View {
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            AppThemedToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
         }
         .confirmationDialog("Save \(displayName)?", isPresented: $showingConfirmation, titleVisibility: .visible) {
             Button("Save setting") { Task { await save() } }
@@ -1103,7 +1103,7 @@ private struct CloudflareZoneDNSSettingsEditor: View {
         }
         .navigationTitle("DNS settings")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        .toolbar { AppThemedToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         .confirmationDialog("Save DNS settings?", isPresented: $showingConfirmation, titleVisibility: .visible) {
             Button("Save changes") { Task { await save() } }
             Button("Cancel", role: .cancel) {}

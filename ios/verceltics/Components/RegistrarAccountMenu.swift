@@ -55,15 +55,15 @@ struct RegistrarAccountMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            AppToolbarMenuLabel {
                 if let provider = store.activeAccount?.provider { RegistrarMark(provider: provider, size: 25) }
-                else { Image(systemName: "globe").font(.system(size: 16, weight: .bold)) }
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(AppTheme.navigationAccent)
+                else {
+                    Image(systemName: "globe")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(AppTheme.navigationAccent)
+                }
             }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Switch connected registrar")
             .accessibilityValue(store.activeAccount?.name ?? "No active registrar")
         }

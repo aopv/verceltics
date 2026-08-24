@@ -497,10 +497,10 @@ private struct CloudflareKVValueEditor: View {
         .navigationTitle(key == nil ? "Write KV Value" : keyName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
+            AppThemedToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }.foregroundStyle(AppTheme.textSecondary)
             }
-            ToolbarItem(placement: .confirmationAction) {
+            AppThemedToolbarItem(placement: .confirmationAction) {
                 Button("Save") { validateAndConfirm() }
                     .fontWeight(.bold)
                     .foregroundStyle(CloudflareStyle.orange)

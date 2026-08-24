@@ -338,7 +338,7 @@ private struct CloudflareAPITagView: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search \(operations.count) operations")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            AppThemedToolbarItem(placement: .topBarTrailing) {
                 Menu(filter.rawValue) {
                     ForEach(CloudflareOperationFilter.allCases) { value in
                         Button(value.rawValue) { filter = value }

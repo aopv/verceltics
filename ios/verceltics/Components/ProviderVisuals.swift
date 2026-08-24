@@ -388,7 +388,60 @@ struct AppThemedToolbarItem<Content: View>: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: placement) {
             content
+                .modifier(AppToolbarControlChrome())
         }
+    }
+}
+
+/// Adds Verceltics' signal detail to the content inside a system toolbar item.
+/// The navigation bar still owns the single native Liquid Glass background;
+/// this modifier only contributes ink, geometry, and the orange status rail.
+private struct AppToolbarControlChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(AppTheme.textPrimary)
+            .fontWeight(.bold)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(AppTheme.navigationAccent)
+                    .frame(width: 20, height: 3)
+                    .offset(y: -4)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+    }
+}
+
+/// Provider/account selector content for a system-owned Liquid Glass toolbar
+/// control. The compact utility tile makes the control unmistakably part of
+/// Verceltics without drawing a second material behind the native glass.
+struct AppToolbarMenuLabel<Mark: View>: View {
+    private let mark: Mark
+
+    init(@ViewBuilder mark: () -> Mark) {
+        self.mark = mark()
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            mark
+                .frame(width: 20, height: 20)
+                .frame(width: 26, height: 26)
+                .background(AppTheme.signalForeground)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                        .strokeBorder(AppTheme.navigationAccent, lineWidth: 1.5)
+                }
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(AppTheme.navigationAccent)
+        }
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
     }
 }
 
@@ -538,17 +591,21 @@ struct AppToolbarActionLabel: View {
                     .controlSize(.small)
                     .tint(accent)
             } else {
-                VStack(spacing: 3) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                        .fill(accent)
+
                     Image(systemName: systemImage)
                         .font(.system(size: 16, weight: .black))
                         .symbolRenderingMode(.monochrome)
                         .rotationEffect(.degrees(rotation))
-
-                    Rectangle()
-                        .fill(accent)
-                        .frame(width: 18, height: 2)
+                        .foregroundStyle(AppTheme.signalForeground)
                 }
-                .foregroundStyle(AppTheme.textPrimary)
+                .frame(width: 29, height: 29)
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
+                }
             }
         }
         .frame(width: 44, height: 44)

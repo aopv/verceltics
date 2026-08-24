@@ -127,7 +127,7 @@ struct PaywallView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                AppThemedToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.bold))

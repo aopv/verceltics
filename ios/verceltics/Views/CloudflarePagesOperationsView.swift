@@ -1230,7 +1230,7 @@ private struct CloudflarePagesDirectUploadSheet: View {
             .navigationTitle("Direct upload")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppThemedToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
             }
@@ -1415,10 +1415,10 @@ private struct CloudflarePagesProjectEditorSheet: View {
             .navigationTitle("Project settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppThemedToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(isSaving)
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppThemedToolbarItem(placement: .confirmationAction) {
                     Button {
                         isSaving = true
                         Task {
@@ -1539,7 +1539,7 @@ private struct CloudflarePagesAddDomainSheet: View {
             .navigationTitle("Custom domain")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppThemedToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(isAdding)
                 }
             }
@@ -1673,7 +1673,7 @@ private struct CloudflarePagesDomainDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.load() }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                AppThemedToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task { await viewModel.load(forceRefresh: true) }
                     } label: {

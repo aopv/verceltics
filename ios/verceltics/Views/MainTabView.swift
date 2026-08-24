@@ -263,6 +263,7 @@ private struct AppGlassNavigationBar: View {
     @ScaledMetric(relativeTo: .caption2) private var scaledDockHeight: CGFloat = 62
     @ScaledMetric(relativeTo: .caption2) private var scaledSearchWidth: CGFloat = 60
     @State private var searchHapticTrigger = 0
+    @State private var selectionHapticTrigger = 0
 
     private let destinations: [MainTabDestination] = [
         .hosting,
@@ -284,6 +285,7 @@ private struct AppGlassNavigationBar: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Main navigation")
         .accessibilityIdentifier("mainNavigation.dock")
+        .sensoryFeedback(.selection, trigger: selectionHapticTrigger)
     }
 
     private var navigationContent: some View {
@@ -315,7 +317,7 @@ private struct AppGlassNavigationBar: View {
                         .font(AppTheme.displayFont(.caption2))
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
-                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        .dynamicTypeSize(...DynamicTypeSize.large)
                 }
                 .foregroundStyle(AppTheme.textPrimary)
                 .frame(width: searchWidth, height: dockHeight)
@@ -364,6 +366,7 @@ private struct AppGlassNavigationBar: View {
             withAnimation(.smooth(duration: 0.24)) {
                 selection = destination
             }
+            selectionHapticTrigger &+= 1
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: destination.navigationSystemImage)
@@ -373,7 +376,7 @@ private struct AppGlassNavigationBar: View {
                     .font(AppTheme.displayFont(.caption2))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .dynamicTypeSize(...DynamicTypeSize.large)
             }
             .foregroundStyle(isSelected ? AppTheme.signalForeground : AppTheme.textPrimary)
             .frame(maxWidth: .infinity, minHeight: dockHeight - 10)

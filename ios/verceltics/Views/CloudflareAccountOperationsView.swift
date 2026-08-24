@@ -579,7 +579,7 @@ private struct CloudflareAccountMemberDetailView: View {
         }
         .navigationTitle("Member access")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+        .toolbar { AppThemedToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
         .tint(CloudflareStyle.orange)
     }
 
@@ -679,7 +679,7 @@ private struct CloudflareAccountRoleDetailView: View {
         }
         .navigationTitle("Role details")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+        .toolbar { AppThemedToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
         .tint(CloudflareStyle.orange)
     }
 }
@@ -734,7 +734,7 @@ private struct CloudflareAuditEventDetailView: View {
         .navigationTitle("Audit event")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            AppThemedToolbarItem(placement: .topBarTrailing) {
                 Button("Done") { dismiss() }
                     .font(.system(size: 12, weight: .bold))
             }

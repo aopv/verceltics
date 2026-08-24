@@ -66,21 +66,16 @@ struct SiteAccountMenu: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            AppToolbarMenuLabel {
                 if let provider = store.activeAccount?.provider {
                     SiteProviderMark(provider: provider, size: 21)
                 } else {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .foregroundStyle(AppTheme.navigationAccent)
                 }
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(AppTheme.navigationAccent)
             }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Switch connected site service")
             .accessibilityValue(store.activeAccount?.name ?? "No active site service")
         }

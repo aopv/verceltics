@@ -135,7 +135,7 @@ struct AboutView: View {
         SectionCard(title: "Links") {
             AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
             AppInsetDivider()
-            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/aopv/verceltics", url: "https://github.com/aopv/verceltics")
+            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
             AppInsetDivider()
             AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
             AppInsetDivider()
@@ -147,7 +147,7 @@ struct AboutView: View {
         SectionCard(title: "Help") {
             AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
             AppInsetDivider()
-            AboutRow(icon: "ant", title: "Report an issue", subtitle: "Open a GitHub issue", url: "https://github.com/aopv/verceltics/issues")
+            AboutRow(icon: "ant", title: "Report an issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
         }
     }
 
@@ -166,7 +166,7 @@ struct AboutView: View {
                 icon: "star.fill",
                 title: "Star on GitHub",
                 subtitle: "Open the GitHub repository",
-                url: "https://github.com/aopv/verceltics"
+                url: "https://github.com/apoorvdarshan/verceltics"
             )
             AppInsetDivider()
             AboutRow(
@@ -190,7 +190,7 @@ struct AboutView: View {
             AppInsetDivider()
             AboutRow(icon: "doc.text.fill", title: "Terms of service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
             AppInsetDivider()
-            AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/aopv/verceltics/blob/main/LICENSE")
+            AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
         }
     }
 

@@ -81,7 +81,7 @@ export default function Terms() {
 
       <section id="source">
         <h2>Building from source</h2>
-        <p>The source code is available under the MIT license at <a href="https://github.com/aopv/verceltics" rel="noreferrer" target="_blank">github.com/aopv/verceltics</a>. You may build it for personal use subject to that license, Apple&apos;s developer terms, provider terms, and your own credentials. The App Store version is offered for convenience and to fund ongoing development.</p>
+        <p>The source code is available under the MIT license at <a href="https://github.com/apoorvdarshan/verceltics" rel="noreferrer" target="_blank">github.com/apoorvdarshan/verceltics</a>. You may build it for personal use subject to that license, Apple&apos;s developer terms, provider terms, and your own credentials. The App Store version is offered for convenience and to fund ongoing development.</p>
         <p>Unofficial builds and forks are controlled by their maintainers. Verceltics does not provide warranties or support for modified builds.</p>
       </section>
 

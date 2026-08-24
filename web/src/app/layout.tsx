@@ -86,7 +86,7 @@ const siteJsonLd = {
       logo: `${SITE_URL}/icon.png`,
       founder: { "@type": "Person", name: "Apoorv Darshan", url: "https://x.com/apoorvdarshan" },
       sameAs: [
-        "https://github.com/aopv/verceltics",
+        "https://github.com/apoorvdarshan/verceltics",
         "https://www.linkedin.com/company/verceltics",
         "https://www.producthunt.com/products/verceltics",
         "https://trustmrr.com/startup/verceltics-hosting-domains",

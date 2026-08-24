@@ -69,7 +69,7 @@ PRICING
 Built with SwiftUI and Swift Charts, with StoreKit and RevenueCat for subscriptions, lifetime access, optional tips, and restoration.
 
 Website: https://verceltics.com
-GitHub: https://github.com/aopv/verceltics
+GitHub: https://github.com/apoorvdarshan/verceltics
 Privacy Policy: https://verceltics.com/privacy
 Terms of Service: https://verceltics.com/terms
 Contact: ad13dtu@gmail.com

@@ -17,11 +17,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aopv/verceltics/releases/latest"><img src="https://img.shields.io/github/v/release/apoorvdarshan/verceltics?label=release&color=4fa1ff" alt="Latest release" /></a>
+  <a href="https://github.com/apoorvdarshan/verceltics/releases/latest"><img src="https://img.shields.io/github/v/release/apoorvdarshan/verceltics?label=release&color=4fa1ff" alt="Latest release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT license" /></a>
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5-orange.svg" alt="Swift 5" /></a>
   <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/Platform-iOS%2018%2B-black.svg" alt="iOS 18 or later" /></a>
-  <a href="https://github.com/aopv/verceltics/stargazers"><img src="https://img.shields.io/github/stars/aopv/verceltics?style=flat&color=yellow" alt="GitHub stars" /></a>
+  <a href="https://github.com/apoorvdarshan/verceltics/stargazers"><img src="https://img.shields.io/github/stars/apoorvdarshan/verceltics?style=flat&color=yellow" alt="GitHub stars" /></a>
 </p>
 
 Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
@@ -163,7 +163,7 @@ verceltics/
 1. Clone the repository.
 
    ```bash
-   git clone https://github.com/aopv/verceltics.git
+   git clone https://github.com/apoorvdarshan/verceltics.git
    cd verceltics
    ```
 
@@ -237,17 +237,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report sec
 - X: [@apoorvdarshan](https://x.com/apoorvdarshan)
 - LinkedIn: [Verceltics](https://www.linkedin.com/company/verceltics)
 - Support: [ko-fi.com/apoorvdarshan](https://ko-fi.com/apoorvdarshan)
-- Issues: [github.com/aopv/verceltics/issues](https://github.com/aopv/verceltics/issues)
+- Issues: [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues)
 
 ## Contributors
 
-<a href="https://github.com/aopv/verceltics/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=aopv/verceltics" alt="Verceltics contributors" />
+<a href="https://github.com/apoorvdarshan/verceltics/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=apoorvdarshan/verceltics" alt="Verceltics contributors" />
 </a>
 
 ## Star History
 
-<a href="https://github.com/aopv/verceltics/stargazers">
+<a href="https://github.com/apoorvdarshan/verceltics/stargazers">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://verceltics.com/api/star-history.svg?theme=dark&amp;v=3" />
    <source media="(prefers-color-scheme: light)" srcset="https://verceltics.com/api/star-history.svg?theme=light&amp;v=3" />

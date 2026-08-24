@@ -18,6 +18,16 @@ enum PrimaryWorkspace: String, CaseIterable {
     static func restored(from storedValue: String?) -> PrimaryWorkspace {
         storedValue.flatMap(PrimaryWorkspace.init(rawValue:)) ?? .hosting
     }
+
+    static func searchTarget(
+        preferred: PrimaryWorkspace,
+        connectedWorkspaces: Set<PrimaryWorkspace>
+    ) -> PrimaryWorkspace {
+        if connectedWorkspaces.contains(preferred) {
+            return preferred
+        }
+        return allCases.first(where: connectedWorkspaces.contains) ?? preferred
+    }
 }
 
 enum MainTabDestination: Hashable {
@@ -40,6 +50,8 @@ enum MainTabDestination: Hashable {
 struct MainTabView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(AuthManager.self) private var authManager
+    @Environment(RegistrarStore.self) private var registrarStore
+    @Environment(SiteStore.self) private var siteStore
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(lastPrimaryWorkspaceKey) private var lastPrimaryWorkspace = PrimaryWorkspace.hosting.rawValue
     @State private var selectedTab: MainTabDestination
@@ -201,15 +213,34 @@ struct MainTabView: View {
     }
 
     private func activateSearch() {
-        let workspace = selectedTab.primaryWorkspace
+        let preferredWorkspace = selectedTab.primaryWorkspace
             ?? PrimaryWorkspace.restored(from: lastPrimaryWorkspace)
+        let workspace = PrimaryWorkspace.searchTarget(
+            preferred: preferredWorkspace,
+            connectedWorkspaces: connectedSearchWorkspaces
+        )
         if selectedTab != workspace.destination {
             selectedTab = workspace.destination
         }
+        lastPrimaryWorkspace = workspace.rawValue
         Task { @MainActor in
             await Task.yield()
             requestSearch(for: workspace)
         }
+    }
+
+    private var connectedSearchWorkspaces: Set<PrimaryWorkspace> {
+        var workspaces = Set<PrimaryWorkspace>()
+        if authManager.activeAccount != nil {
+            workspaces.insert(.hosting)
+        }
+        if registrarStore.activeAccount != nil {
+            workspaces.insert(.registrars)
+        }
+        if siteStore.activeAccount != nil {
+            workspaces.insert(.sites)
+        }
+        return workspaces
     }
 
     /// Rebuild provider-specific state when credentials are rotated in place.
@@ -231,6 +262,7 @@ private struct AppGlassNavigationBar: View {
     let searchAction: () -> Void
     @ScaledMetric(relativeTo: .caption2) private var scaledDockHeight: CGFloat = 62
     @ScaledMetric(relativeTo: .caption2) private var scaledSearchWidth: CGFloat = 60
+    @State private var searchHapticTrigger = 0
 
     private let destinations: [MainTabDestination] = [
         .hosting,
@@ -255,7 +287,9 @@ private struct AppGlassNavigationBar: View {
     }
 
     private var navigationContent: some View {
-        HStack(spacing: 10) {
+        let searchShape = RoundedRectangle(cornerRadius: 19, style: .continuous)
+
+        return HStack(spacing: 10) {
             HStack(spacing: 4) {
                 ForEach(destinations, id: \.self) { destination in
                     navigationButton(for: destination)
@@ -270,7 +304,10 @@ private struct AppGlassNavigationBar: View {
                 tint: AppTheme.glassTint
             )
 
-            Button(action: searchAction) {
+            Button {
+                searchHapticTrigger &+= 1
+                searchAction()
+            } label: {
                 VStack(spacing: 4) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 21, weight: .black))
@@ -282,11 +319,13 @@ private struct AppGlassNavigationBar: View {
                 }
                 .foregroundStyle(AppTheme.textPrimary)
                 .frame(width: searchWidth, height: dockHeight)
+                .contentShape(.interaction, searchShape)
                 .overlay(alignment: .top) {
                     Rectangle()
                         .fill(AppTheme.navigationAccent)
                         .frame(width: 26, height: 3)
                         .offset(y: 7)
+                        .allowsHitTesting(false)
                 }
             }
             .buttonStyle(AppNavigationPressStyle())
@@ -295,9 +334,17 @@ private struct AppGlassNavigationBar: View {
                 isInteractive: true,
                 tint: AppTheme.glassSelectedTint
             )
+            .contentShape(.interaction, searchShape)
+            .sensoryFeedback(.impact(weight: .medium), trigger: searchHapticTrigger)
             .accessibilityLabel("Search current workspace")
             .accessibilityHint("Opens search in the last selected provider workspace")
             .accessibilityIdentifier("mainNavigation.search")
+        }
+        .background {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { }
+                .accessibilityHidden(true)
         }
     }
 

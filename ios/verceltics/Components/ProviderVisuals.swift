@@ -323,16 +323,16 @@ struct NativeGlassSurfaceModifier: ViewModifier {
                         .regular.tint(brandedTint).interactive(),
                         in: .rect(cornerRadius: cornerRadius)
                     )
-                    .background { brandedGlassShadow(shape) }
-                    .overlay { brandedGlassOutline(shape) }
+                    .background { brandedGlassShadow(shape).allowsHitTesting(false) }
+                    .overlay { brandedGlassOutline(shape).allowsHitTesting(false) }
             } else {
                 content
                     .glassEffect(
                         .regular.tint(brandedTint),
                         in: .rect(cornerRadius: cornerRadius)
                     )
-                    .background { brandedGlassShadow(shape) }
-                    .overlay { brandedGlassOutline(shape) }
+                    .background { brandedGlassShadow(shape).allowsHitTesting(false) }
+                    .overlay { brandedGlassOutline(shape).allowsHitTesting(false) }
             }
         } else {
             content
@@ -346,8 +346,8 @@ struct NativeGlassSurfaceModifier: ViewModifier {
                     shape.fill(brandedTint)
                 }
                 .clipShape(shape)
-                .background { brandedGlassShadow(shape) }
-                .overlay { brandedGlassOutline(shape) }
+                .background { brandedGlassShadow(shape).allowsHitTesting(false) }
+                .overlay { brandedGlassOutline(shape).allowsHitTesting(false) }
         }
     }
 

@@ -21,4 +21,34 @@ final class MainTabPersistenceTests: XCTestCase {
         XCTAssertNil(MainTabDestination.search.primaryWorkspace)
         XCTAssertNil(MainTabDestination.about.primaryWorkspace)
     }
+
+    func testSearchKeepsThePreferredConnectedWorkspace() {
+        XCTAssertEqual(
+            PrimaryWorkspace.searchTarget(
+                preferred: .registrars,
+                connectedWorkspaces: [.hosting, .registrars, .sites]
+            ),
+            .registrars
+        )
+    }
+
+    func testSearchFallsBackToAnAvailableConnectedWorkspace() {
+        XCTAssertEqual(
+            PrimaryWorkspace.searchTarget(
+                preferred: .hosting,
+                connectedWorkspaces: [.sites]
+            ),
+            .sites
+        )
+    }
+
+    func testSearchKeepsThePreferredWorkspaceWhenNothingIsConnected() {
+        XCTAssertEqual(
+            PrimaryWorkspace.searchTarget(
+                preferred: .sites,
+                connectedWorkspaces: []
+            ),
+            .sites
+        )
+    }
 }

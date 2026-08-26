@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import com.apoorvdarshan.verceltics.ui.screens.about.AboutAppearance
 
 private val LightColors = lightColorScheme(
     primary = LightSignalFill,
@@ -70,6 +71,17 @@ private val VercelticsShapes = Shapes(
 
 @Composable
 fun VercelticsTheme(
+    appearance: AboutAppearance,
+    content: @Composable () -> Unit,
+) {
+    VercelticsTheme(
+        darkTheme = appearance.resolveDarkTheme(isSystemInDarkTheme()),
+        content = content,
+    )
+}
+
+@Composable
+fun VercelticsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
@@ -93,4 +105,10 @@ fun VercelticsTheme(
         shapes = VercelticsShapes,
         content = content,
     )
+}
+
+internal fun AboutAppearance.resolveDarkTheme(systemDarkTheme: Boolean): Boolean = when (this) {
+    AboutAppearance.SYSTEM -> systemDarkTheme
+    AboutAppearance.LIGHT -> false
+    AboutAppearance.DARK -> true
 }

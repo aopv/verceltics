@@ -38,6 +38,11 @@ import com.apoorvdarshan.verceltics.ui.screens.AboutScreen
 import com.apoorvdarshan.verceltics.ui.screens.ProviderDetailScreen
 import com.apoorvdarshan.verceltics.ui.screens.VercelWorkspaceScreen
 import com.apoorvdarshan.verceltics.ui.screens.WorkspaceScreen
+import com.apoorvdarshan.verceltics.ui.screens.about.AboutAppearance
+import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
+import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenState
+import com.apoorvdarshan.verceltics.ui.screens.about.AboutUpdateState
+import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
 
 private const val UI_PREFERENCES = "verceltics.ui"
 private const val LAST_PRIMARY_WORKSPACE = "lastPrimaryWorkspace"
@@ -81,6 +86,8 @@ private enum class MainDestination(
 @Composable
 fun VercelticsApp(
     vercelConnectionViewModel: VercelConnectionViewModel,
+    aboutState: AboutScreenState = defaultAboutScreenState(),
+    onAboutAction: (AboutScreenAction) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -164,7 +171,13 @@ fun VercelticsApp(
                 .padding(bottom = contentPadding.calculateBottomPadding())
                 .windowInsetsPadding(
                     WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                        if (provider == null) {
+                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                        } else {
+                            WindowInsetsSides.Top +
+                                WindowInsetsSides.Horizontal +
+                                WindowInsetsSides.Bottom
+                        },
                     ),
                 )
                 .background(MaterialTheme.colorScheme.background),
@@ -202,10 +215,20 @@ fun VercelticsApp(
                             modifier = Modifier.fillMaxSize(),
                         )
 
-                        MainDestination.ABOUT -> AboutScreen(Modifier.fillMaxSize())
+                        MainDestination.ABOUT -> AboutScreen(
+                            state = aboutState,
+                            onAction = onAboutAction,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
                 }
             }
         }
     }
 }
+
+private fun defaultAboutScreenState() = AboutScreenState(
+    version = currentAndroidAppVersion(),
+    appearance = AboutAppearance.SYSTEM,
+    update = AboutUpdateState.NotConfigured,
+)

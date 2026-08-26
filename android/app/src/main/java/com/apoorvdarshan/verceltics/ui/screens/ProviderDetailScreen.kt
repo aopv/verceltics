@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -30,18 +30,11 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -57,8 +50,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +79,10 @@ import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.SectionHeading
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
+import com.apoorvdarshan.verceltics.ui.components.ThemedActionButton
+import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
+import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
+import com.apoorvdarshan.verceltics.ui.components.ThemedAuthTextField
 import com.apoorvdarshan.verceltics.ui.components.contrastingContentColor
 import java.text.DateFormat
 import java.util.Date
@@ -221,7 +221,7 @@ private fun ProviderHero(provider: IntegrationProvider) {
                 Text(
                     text = provider.description,
                     style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                    color = accentContent.copy(alpha = 0.82f),
+                    color = accentContent,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -266,14 +266,12 @@ private fun ProviderConnectPlaceholder(provider: IntegrationProvider) {
                     )
                 }
             }
-            Button(
+            ThemedActionButton(
+                text = "CONNECT ${provider.displayName.uppercase()}",
                 onClick = {},
                 enabled = false,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(4.dp),
-            ) {
-                Text("CONNECT ${provider.displayName.uppercase()}")
-            }
+            )
         }
     }
 }
@@ -335,29 +333,20 @@ private fun VercelConnectionPanel(
     val haptic = LocalHapticFeedback.current
 
     if (showDisconnectConfirmation) {
-        AlertDialog(
+        ThemedAlertDialog(
             onDismissRequest = { showDisconnectConfirmation = false },
-            shape = RoundedCornerShape(7.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp,
-            title = { Text("Disconnect Vercel?", style = MaterialTheme.typography.headlineMedium) },
-            text = { Text("The saved token will be removed from this Android device.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showDisconnectConfirmation = false
-                        projectQuery = ""
-                        vercelConnectionViewModel.disconnect()
-                    },
-                ) { Text("DISCONNECT") }
+            title = "Disconnect Vercel?",
+            message = "The saved token will be removed from this Android device.",
+            confirmText = "DISCONNECT",
+            confirmTone = ThemedActionTone.DESTRUCTIVE,
+            dismissText = "KEEP ACCOUNT",
+            onConfirm = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                showDisconnectConfirmation = false
+                projectQuery = ""
+                vercelConnectionViewModel.disconnect()
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    showDisconnectConfirmation = false
-                }) { Text("KEEP ACCOUNT") }
-            },
+            testTag = "vercel.disconnectDialog",
         )
     }
 
@@ -368,6 +357,9 @@ private fun VercelConnectionPanel(
     ) {
         Column(Modifier.padding(18.dp)) {
             when {
+                state.status == VercelConnectionStatus.RESTORING ->
+                    RestoringVercelConnectionContent()
+
                 state.status == VercelConnectionStatus.CONNECTED && state.dashboard != null ->
                     ConnectedVercelContent(
                     state = state,
@@ -413,15 +405,14 @@ private fun VercelConnectionPanel(
                         )
                     }
                     Spacer(Modifier.height(14.dp))
-                    OutlinedTextField(
+                    ThemedAuthTextField(
                         value = token,
                         onValueChange = { token = it },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("vercel.token"),
                         enabled = !state.isBusy,
-                        singleLine = true,
-                        label = { Text("Personal access token") },
+                        label = "Personal access token",
                         visualTransformation = if (tokenVisible) {
                             VisualTransformation.None
                         } else {
@@ -432,26 +423,33 @@ private fun VercelConnectionPanel(
                             keyboardType = KeyboardType.Password,
                         ),
                         trailingIcon = {
-                            IconButton(onClick = {
-                                tokenVisible = !tokenVisible
-                                haptic.performHapticFeedback(
-                                    if (tokenVisible) {
-                                        HapticFeedbackType.ToggleOn
-                                    } else {
-                                        HapticFeedbackType.ToggleOff
-                                    },
-                                )
-                            }) {
-                                Icon(
-                                    if (tokenVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                    contentDescription = if (tokenVisible) "Hide token" else "Show token",
-                                )
+                            ThemedGlassControl(
+                                modifier = Modifier.size(42.dp),
+                                enabled = !state.isBusy,
+                                shape = RoundedCornerShape(10.dp),
+                                onClick = {
+                                    tokenVisible = !tokenVisible
+                                    haptic.performHapticFeedback(
+                                        if (tokenVisible) {
+                                            HapticFeedbackType.ToggleOn
+                                        } else {
+                                            HapticFeedbackType.ToggleOff
+                                        },
+                                    )
+                                },
+                            ) {
+                                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        if (tokenVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                        contentDescription = if (tokenVisible) "Hide token" else "Show token",
+                                    )
+                                }
                             }
                         },
-                        shape = RoundedCornerShape(5.dp),
                     )
                     Spacer(Modifier.height(12.dp))
-                    Button(
+                    ThemedActionButton(
+                        text = if (state.isBusy) "CHECKING TOKEN" else "CONNECT SECURELY",
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             if (token.isBlank()) {
@@ -463,26 +461,12 @@ private fun VercelConnectionPanel(
                             }
                         },
                         enabled = !state.isBusy,
+                        isBusy = state.isBusy,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 50.dp)
-                            .testTag("vercel.connect"),
-                        shape = RoundedCornerShape(4.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                    ) {
-                        if (state.isBusy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                            Spacer(Modifier.width(9.dp))
-                        }
-                        Text(if (state.isBusy) "CHECKING TOKEN" else "CONNECT SECURELY")
-                    }
+                            .heightIn(min = 50.dp),
+                        testTag = "vercel.connect",
+                    )
                 }
             }
 
@@ -495,12 +479,41 @@ private fun VercelConnectionPanel(
 }
 
 @Composable
+private fun RestoringVercelConnectionContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 150.dp)
+            .testTag("vercel.restoring")
+            .semantics {
+                liveRegion = LiveRegionMode.Polite
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(28.dp),
+            strokeWidth = 2.5.dp,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Restoring saved Vercel account", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Checking the encrypted account on this device…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun SavedVercelUnavailableContent(
     account: VercelAccountUi?,
     loading: Boolean,
     onRetry: () -> Unit,
     onDisconnect: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     StatusPill(text = "Saved securely", color = MaterialTheme.colorScheme.tertiary)
     Spacer(Modifier.height(10.dp))
     Text(
@@ -520,13 +533,27 @@ private fun SavedVercelUnavailableContent(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(Modifier.height(12.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(enabled = !loading, onClick = onRetry) {
-            Text(if (loading) "Retrying…" else "Retry dashboard")
-        }
-        TextButton(enabled = !loading, onClick = onDisconnect) {
-            Text("Disconnect")
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ThemedActionButton(
+            text = if (loading) "RETRYING…" else "RETRY DASHBOARD",
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onRetry()
+            },
+            enabled = !loading,
+            isBusy = loading,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        ThemedActionButton(
+            text = "DISCONNECT",
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onDisconnect()
+            },
+            enabled = !loading,
+            tone = ThemedActionTone.DESTRUCTIVE,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -550,6 +577,7 @@ private fun ConnectedVercelContent(
             }
         }
     }
+    val previewProjects = remember(visibleProjects) { providerDetailProjectPreview(visibleProjects) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -574,18 +602,57 @@ private fun ConnectedVercelContent(
                 )
             }
         }
-        IconButton(
+        ThemedGlassControl(
             onClick = onRefresh,
             enabled = !state.isBusy,
-            modifier = Modifier.testTag("vercel.refresh"),
+            modifier = Modifier.size(48.dp),
+            testTag = "vercel.refresh",
         ) {
-            Icon(Icons.Rounded.Refresh, contentDescription = "Refresh Vercel projects")
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .semantics {
+                        contentDescription = if (state.isBusy) {
+                            "Refreshing Vercel projects"
+                        } else {
+                            "Refresh Vercel projects"
+                        }
+                        if (state.isBusy) {
+                            progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state.isBusy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(Icons.Rounded.Refresh, contentDescription = null)
+                }
+            }
         }
     }
 
     if (state.isBusy) {
         Spacer(Modifier.height(12.dp))
         LinearProgressIndicator(Modifier.fillMaxWidth())
+    }
+    dashboard.warning?.let { warning ->
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = warning,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
+                    RoundedCornerShape(4.dp),
+                )
+                .padding(12.dp),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
     Spacer(Modifier.height(18.dp))
     Row(
@@ -623,23 +690,30 @@ private fun ConnectedVercelContent(
         )
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            visibleProjects.forEach { project ->
+            previewProjects.forEach { project ->
                 VercelProjectRow(project)
+            }
+            if (visibleProjects.size > previewProjects.size) {
+                Text(
+                    text = "Showing ${previewProjects.size} of ${visibleProjects.size}. " +
+                        "Open Hosting to browse the complete project list.",
+                    modifier = Modifier.padding(top = 4.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
     Spacer(Modifier.height(14.dp))
-    OutlinedButton(
+    ThemedActionButton(
+        text = "DISCONNECT ACCOUNT",
         onClick = onDisconnect,
         enabled = !state.isBusy,
+        tone = ThemedActionTone.DESTRUCTIVE,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("vercel.disconnect"),
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
-    ) {
-        Text("DISCONNECT ACCOUNT")
-    }
+    )
 }
 
 @Composable
@@ -675,6 +749,12 @@ private fun VercelProjectRow(project: VercelProjectUi) {
         }
     }
 }
+
+internal fun providerDetailProjectPreview(
+    projects: List<VercelProjectUi>,
+): List<VercelProjectUi> = projects.take(PROVIDER_DETAIL_PROJECT_PREVIEW_LIMIT)
+
+private const val PROVIDER_DETAIL_PROJECT_PREVIEW_LIMIT = 12
 
 @Composable
 private fun ErrorNotice(message: String) {

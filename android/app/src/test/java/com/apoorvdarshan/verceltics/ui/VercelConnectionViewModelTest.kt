@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -90,6 +91,83 @@ class VercelConnectionViewModelTest {
         assertEquals("offline", viewModel.uiState.value.error)
     }
 
+    @Test
+    fun projectAnalyticsLoadsRealGatewayResultAndTracksSelection() = runTest(dispatcher) {
+        val gateway = FakeGateway(VercelRestoreUi.Available(TEST_DASHBOARD))
+        val viewModel = VercelConnectionViewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.openProjectAnalytics(TEST_DASHBOARD.projects.single())
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.analyticsCalls)
+        assertEquals(VercelAnalyticsRange.WEEK, gateway.lastAnalyticsRange)
+        assertEquals(VercelAnalyticsEnvironment.PRODUCTION, gateway.lastAnalyticsEnvironment)
+        assertEquals(12_806L, viewModel.analyticsState.value.data?.overview?.pageViews)
+        assertEquals(VercelAnalyticsRange.WEEK, viewModel.analyticsState.value.displayedRange)
+
+        viewModel.selectAnalyticsRange(VercelAnalyticsRange.MONTH)
+        advanceUntilIdle()
+
+        assertEquals(2, gateway.analyticsCalls)
+        assertEquals(VercelAnalyticsRange.MONTH, gateway.lastAnalyticsRange)
+        assertEquals(VercelAnalyticsRange.MONTH, viewModel.analyticsState.value.displayedRange)
+    }
+
+    @Test
+    fun failedRefreshKeepsLastSuccessfulAnalyticsVisible() = runTest(dispatcher) {
+        val gateway = FakeGateway(VercelRestoreUi.Available(TEST_DASHBOARD))
+        val viewModel = VercelConnectionViewModel(gateway)
+        advanceUntilIdle()
+        viewModel.openProjectAnalytics(TEST_DASHBOARD.projects.single())
+        advanceUntilIdle()
+        assertNotNull(viewModel.analyticsState.value.data)
+
+        gateway.analyticsResult = Result.failure(IOException("analytics offline"))
+        viewModel.refreshProjectAnalytics()
+        advanceUntilIdle()
+
+        assertEquals("analytics offline", viewModel.analyticsState.value.error)
+        assertNotNull(viewModel.analyticsState.value.data)
+        assertEquals(VercelAnalyticsRange.WEEK, viewModel.analyticsState.value.displayedRange)
+    }
+
+    @Test
+    fun unavailableAnalyticsIsTruthfulAndContainsNoPlaceholderData() = runTest(dispatcher) {
+        val gateway = FakeGateway(VercelRestoreUi.Available(TEST_DASHBOARD))
+        gateway.analyticsResult = Result.success(
+            VercelAnalyticsLoadUi.Unavailable("Web Analytics is not enabled."),
+        )
+        val viewModel = VercelConnectionViewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.openProjectAnalytics(TEST_DASHBOARD.projects.single())
+        advanceUntilIdle()
+
+        assertNull(viewModel.analyticsState.value.data)
+        assertEquals("Web Analytics is not enabled.", viewModel.analyticsState.value.unavailableMessage)
+        assertEquals(VercelAnalyticsRange.WEEK, viewModel.analyticsState.value.displayedRange)
+    }
+
+    @Test
+    fun changingAnalyticsSelectionCancelsOlderRequestAndOnlyAppliesLatest() = runTest(dispatcher) {
+        val gateway = FakeGateway(VercelRestoreUi.Available(TEST_DASHBOARD))
+        gateway.analyticsRelease = CompletableDeferred()
+        val viewModel = VercelConnectionViewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.openProjectAnalytics(TEST_DASHBOARD.projects.single())
+        runCurrent()
+        viewModel.selectAnalyticsRange(VercelAnalyticsRange.MONTH)
+        runCurrent()
+        gateway.analyticsRelease?.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(2, gateway.analyticsCalls)
+        assertEquals(VercelAnalyticsRange.MONTH, viewModel.analyticsState.value.displayedRange)
+        assertEquals(VercelAnalyticsRange.MONTH, gateway.lastAnalyticsRange)
+    }
+
     private class FakeGateway(
         private val restoreResult: VercelRestoreUi,
     ) : VercelUiGateway {
@@ -100,6 +178,11 @@ class VercelConnectionViewModelTest {
         var connectRelease = CompletableDeferred(Unit)
         var disconnectStarted = CompletableDeferred<Unit>()
         var disconnectRelease = CompletableDeferred(Unit)
+        var analyticsCalls = 0
+        var lastAnalyticsRange: VercelAnalyticsRange? = null
+        var lastAnalyticsEnvironment: VercelAnalyticsEnvironment? = null
+        var analyticsResult: Result<VercelAnalyticsLoadUi> = Result.success(TEST_ANALYTICS)
+        var analyticsRelease: CompletableDeferred<Unit>? = null
 
         override suspend fun restore(): Result<VercelRestoreUi> = Result.success(restoreResult)
 
@@ -115,6 +198,18 @@ class VercelConnectionViewModelTest {
             return Result.success(TEST_DASHBOARD)
         }
 
+        override suspend fun loadProjectAnalytics(
+            project: VercelProjectUi,
+            range: VercelAnalyticsRange,
+            environment: VercelAnalyticsEnvironment,
+        ): Result<VercelAnalyticsLoadUi> {
+            analyticsCalls += 1
+            lastAnalyticsRange = range
+            lastAnalyticsEnvironment = environment
+            analyticsRelease?.await()
+            return analyticsResult
+        }
+
         override suspend fun disconnect(): Result<Unit> {
             disconnectCalls += 1
             disconnectStarted.complete(Unit)
@@ -127,6 +222,16 @@ class VercelConnectionViewModelTest {
         val TEST_DASHBOARD = VercelDashboardUi(
             account = VercelAccountUi("Apoorv Test", "apoorv@example.com"),
             projects = listOf(VercelProjectUi("project", "verceltics", "Next.js", null)),
+        )
+        val TEST_ANALYTICS = VercelAnalyticsLoadUi.Available(
+            VercelAnalyticsDataUi(
+                overview = VercelAnalyticsOverviewUi(12_806, 2_104, 42.0),
+                previousOverview = VercelAnalyticsOverviewUi(11_000, 1_900, 44.0),
+                timeseries = listOf(VercelAnalyticsPointUi("2026-08-27", 12_806, 2_104)),
+                pages = listOf(VercelAnalyticsBreakdownUi("/", 8_000, 1_200)),
+                referrers = emptyList(),
+                countries = emptyList(),
+            ),
         )
     }
 }

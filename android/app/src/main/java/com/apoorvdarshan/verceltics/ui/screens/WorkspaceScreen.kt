@@ -26,7 +26,6 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,6 +59,7 @@ import com.apoorvdarshan.verceltics.domain.Workspace
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
+import com.apoorvdarshan.verceltics.ui.components.ThemedModalBottomSheet
 
 /**
  * Native Android counterpart to the disconnected SwiftUI workspace roots.
@@ -133,12 +133,9 @@ fun WorkspaceScreen(
     }
 
     if (showsConnectionCatalog) {
-        ModalBottomSheet(
+        ThemedModalBottomSheet(
             onDismissRequest = { showsConnectionCatalog = false },
-            containerColor = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onBackground,
-            dragHandle = null,
-            modifier = Modifier.testTag("connection.catalog"),
+            testTag = "connection.catalog",
         ) {
             ConnectionCatalog(
                 selectedCategory = selectedCategory,
@@ -494,12 +491,7 @@ private fun ConnectionCategoryPicker(
 ) {
     val haptic = LocalHapticFeedback.current
     val fontScale = LocalDensity.current.fontScale
-    val cappedLabelScale = minOf(fontScale, 1.15f) / fontScale
-    val baseLabelStyle = MaterialTheme.typography.labelLarge
-    val labelStyle = baseLabelStyle.copy(
-        fontSize = baseLabelStyle.fontSize * cappedLabelScale,
-        lineHeight = baseLabelStyle.lineHeight * cappedLabelScale,
-    )
+    val usesStackedLayout = usesStackedConnectionCategoryLayout(fontScale)
     Surface(
         modifier = modifier
             .heightIn(min = 52.dp)
@@ -509,56 +501,92 @@ private fun ConnectionCategoryPicker(
         border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
         tonalElevation = 0.dp,
     ) {
-        Row(Modifier.fillMaxWidth()) {
-            Workspace.entries.forEach { category ->
-                val isSelected = category == selectedCategory
-                Surface(
-                    onClick = {
-                        if (!isSelected) {
+        if (usesStackedLayout) {
+            Column(Modifier.fillMaxWidth()) {
+                Workspace.entries.forEach { category ->
+                    ConnectionCategoryButton(
+                        category = category,
+                        isSelected = category == selectedCategory,
+                        onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             onSelected(category)
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 50.dp)
-                        .testTag("connection.category.${category.id}")
-                        .semantics {
-                            contentDescription = category.displayName
-                            role = Role.Tab
-                            selected = isSelected
                         },
-                    shape = RoundedCornerShape(4.dp),
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    contentColor = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    border = if (isSelected) {
-                        BorderStroke(2.dp, MaterialTheme.colorScheme.outline)
-                    } else {
-                        null
-                    },
-                    tonalElevation = 0.dp,
-                ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = category.displayName,
-                            style = labelStyle,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                        showsIcon = true,
+                    )
                 }
             }
+        } else {
+            Row(Modifier.fillMaxWidth()) {
+                Workspace.entries.forEach { category ->
+                    ConnectionCategoryButton(
+                        category = category,
+                        isSelected = category == selectedCategory,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onSelected(category)
+                        },
+                        modifier = Modifier.weight(1f),
+                        showsIcon = false,
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun usesStackedConnectionCategoryLayout(fontScale: Float): Boolean = fontScale >= 1.3f
+
+@Composable
+private fun ConnectionCategoryButton(
+    category: Workspace,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    showsIcon: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = { if (!isSelected) onClick() },
+        modifier = modifier
+            .heightIn(min = 50.dp)
+            .testTag("connection.category.${category.id}")
+            .semantics {
+                contentDescription = category.displayName
+                role = Role.Tab
+                selected = isSelected
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        contentColor = if (isSelected) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.outline) else null,
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (showsIcon) {
+                Icon(
+                    imageVector = workspaceIcon(category),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(9.dp))
+            }
+            Text(
+                text = category.displayName,
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

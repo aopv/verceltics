@@ -3,7 +3,9 @@ package com.apoorvdarshan.verceltics.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,6 +41,22 @@ data class VercelConnectionUiState(
         get() = status == VercelConnectionStatus.CONNECTED && dashboard != null
 }
 
+data class VercelAnalyticsUiState(
+    val projectId: String? = null,
+    val selectedRange: VercelAnalyticsRange = VercelAnalyticsRange.WEEK,
+    val selectedEnvironment: VercelAnalyticsEnvironment = VercelAnalyticsEnvironment.PRODUCTION,
+    val displayedRange: VercelAnalyticsRange? = null,
+    val displayedEnvironment: VercelAnalyticsEnvironment? = null,
+    val data: VercelAnalyticsDataUi? = null,
+    val unavailableMessage: String? = null,
+    val error: String? = null,
+    val isLoading: Boolean = false,
+    val lastUpdatedMillis: Long? = null,
+) {
+    val hasVisibleContent: Boolean
+        get() = displayedRange != null
+}
+
 /**
  * Activity-scoped owner for Vercel connection state and provider operations.
  *
@@ -52,10 +70,16 @@ class VercelConnectionViewModel(
     private val operationMutex = Mutex()
     private val _uiState = MutableStateFlow(VercelConnectionUiState())
     val uiState: StateFlow<VercelConnectionUiState> = _uiState.asStateFlow()
+    private val _analyticsState = MutableStateFlow(VercelAnalyticsUiState())
+    val analyticsState: StateFlow<VercelAnalyticsUiState> = _analyticsState.asStateFlow()
 
     private var restoreJob: Job? = null
     private var refreshJob: Job? = null
     private var mutationJob: Job? = null
+    private var analyticsJob: Job? = null
+    private var analyticsProject: VercelProjectUi? = null
+    private var analyticsGeneration = 0L
+    private val analyticsCache = mutableMapOf<AnalyticsCacheKey, CachedAnalytics>()
 
     init {
         restore()
@@ -142,6 +166,7 @@ class VercelConnectionViewModel(
     }
 
     fun disconnect() {
+        closeProjectAnalytics()
         launchMutation(VercelConnectionMutation.DISCONNECTING) {
             gateway.disconnect().fold(
                 onSuccess = {
@@ -153,6 +178,148 @@ class VercelConnectionViewModel(
                 onFailure = { error ->
                     _uiState.update { it.copy(error = messageOf(error)) }
                 },
+            )
+        }
+    }
+
+    fun openProjectAnalytics(project: VercelProjectUi) {
+        val current = _analyticsState.value
+        if (
+            analyticsProject?.id == project.id &&
+            current.projectId == project.id &&
+            (current.hasVisibleContent || current.isLoading)
+        ) {
+            return
+        }
+        analyticsProject = project
+        _analyticsState.value = VercelAnalyticsUiState(
+            projectId = project.id,
+            selectedRange = current.selectedRange,
+            selectedEnvironment = current.selectedEnvironment,
+        )
+        startAnalyticsLoad(forceRefresh = false, debounce = false)
+    }
+
+    fun closeProjectAnalytics() {
+        analyticsJob?.cancel()
+        analyticsJob = null
+        analyticsGeneration += 1
+        analyticsProject = null
+        _analyticsState.value = VercelAnalyticsUiState(
+            selectedRange = _analyticsState.value.selectedRange,
+            selectedEnvironment = _analyticsState.value.selectedEnvironment,
+        )
+    }
+
+    fun selectAnalyticsRange(range: VercelAnalyticsRange) {
+        if (_analyticsState.value.selectedRange == range) return
+        _analyticsState.update { it.copy(selectedRange = range, error = null) }
+        startAnalyticsLoad(forceRefresh = false, debounce = true)
+    }
+
+    fun selectAnalyticsEnvironment(environment: VercelAnalyticsEnvironment) {
+        if (_analyticsState.value.selectedEnvironment == environment) return
+        _analyticsState.update { it.copy(selectedEnvironment = environment, error = null) }
+        startAnalyticsLoad(forceRefresh = false, debounce = true)
+    }
+
+    fun refreshProjectAnalytics() {
+        startAnalyticsLoad(forceRefresh = true, debounce = false)
+    }
+
+    private fun startAnalyticsLoad(forceRefresh: Boolean, debounce: Boolean) {
+        val project = analyticsProject ?: return
+        val selection = _analyticsState.value
+        val range = selection.selectedRange
+        val environment = selection.selectedEnvironment
+        val key = AnalyticsCacheKey(project.id, project.teamId, range, environment)
+        val now = System.currentTimeMillis()
+        analyticsJob?.cancel()
+        analyticsJob = null
+        analyticsGeneration += 1
+        val generation = analyticsGeneration
+        val cached = analyticsCache[key]
+        if (cached != null) {
+            applyAnalyticsResult(
+                projectId = project.id,
+                range = range,
+                environment = environment,
+                result = cached.result,
+                updatedAtMillis = cached.updatedAtMillis,
+            )
+            if (!forceRefresh && now - cached.updatedAtMillis < ANALYTICS_CACHE_LIFETIME_MILLIS) {
+                return
+            }
+        }
+
+        _analyticsState.update {
+            it.copy(
+                projectId = project.id,
+                isLoading = true,
+                error = null,
+            )
+        }
+        analyticsJob = viewModelScope.launch {
+            if (debounce) delay(ANALYTICS_SELECTION_DEBOUNCE_MILLIS)
+            val result = try {
+                gateway.loadProjectAnalytics(project, range, environment)
+            } catch (error: CancellationException) {
+                throw error
+            }
+            if (
+                generation != analyticsGeneration ||
+                analyticsProject?.id != project.id ||
+                _analyticsState.value.selectedRange != range ||
+                _analyticsState.value.selectedEnvironment != environment
+            ) {
+                return@launch
+            }
+            result.fold(
+                onSuccess = { loaded ->
+                    val updatedAt = System.currentTimeMillis()
+                    analyticsCache[key] = CachedAnalytics(loaded, updatedAt)
+                    applyAnalyticsResult(project.id, range, environment, loaded, updatedAt)
+                },
+                onFailure = { error ->
+                    _analyticsState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = messageOf(error),
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    private fun applyAnalyticsResult(
+        projectId: String,
+        range: VercelAnalyticsRange,
+        environment: VercelAnalyticsEnvironment,
+        result: VercelAnalyticsLoadUi,
+        updatedAtMillis: Long,
+    ) {
+        _analyticsState.value = when (result) {
+            is VercelAnalyticsLoadUi.Available -> _analyticsState.value.copy(
+                projectId = projectId,
+                displayedRange = range,
+                displayedEnvironment = environment,
+                data = result.data,
+                unavailableMessage = null,
+                error = null,
+                isLoading = false,
+                lastUpdatedMillis = updatedAtMillis,
+            )
+
+            is VercelAnalyticsLoadUi.Unavailable -> _analyticsState.value.copy(
+                projectId = projectId,
+                displayedRange = range,
+                displayedEnvironment = environment,
+                data = null,
+                unavailableMessage = result.message,
+                error = null,
+                isLoading = false,
+                lastUpdatedMillis = updatedAtMillis,
             )
         }
     }
@@ -220,5 +387,22 @@ class VercelConnectionViewModel(
             }
             return VercelConnectionViewModel(gateway) as T
         }
+    }
+
+    private data class AnalyticsCacheKey(
+        val projectId: String,
+        val teamId: String?,
+        val range: VercelAnalyticsRange,
+        val environment: VercelAnalyticsEnvironment,
+    )
+
+    private data class CachedAnalytics(
+        val result: VercelAnalyticsLoadUi,
+        val updatedAtMillis: Long,
+    )
+
+    private companion object {
+        const val ANALYTICS_CACHE_LIFETIME_MILLIS = 5 * 60 * 1_000L
+        const val ANALYTICS_SELECTION_DEBOUNCE_MILLIS = 250L
     }
 }

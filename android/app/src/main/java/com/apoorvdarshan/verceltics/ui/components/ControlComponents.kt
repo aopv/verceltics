@@ -293,6 +293,7 @@ fun ThemedGlassControl(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     testTag: String? = null,
+    enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(18.dp),
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -300,23 +301,31 @@ fun ThemedGlassControl(
     val isDark = isSystemInDarkTheme()
     val shadowOffset = if (isDark) 2.dp else 3.dp
     val interactionSource = remember { MutableInteractionSource() }
-    Box(modifier = modifier.padding(end = shadowOffset, bottom = shadowOffset)) {
+    Box(modifier = modifier) {
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .offset(shadowOffset, shadowOffset)
                 .clip(shape)
-                .background(colors.outline.copy(alpha = if (isDark) 0.50f else 0.82f)),
+                .background(
+                    colors.outline.copy(
+                        alpha = if (!enabled) 0.24f else if (isDark) 0.50f else 0.82f,
+                    ),
+                ),
         )
         Surface(
             onClick = onClick,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxSize()
                 .then(if (testTag == null) Modifier else Modifier.testTag(testTag)),
             shape = shape,
             color = colors.surface.copy(alpha = if (isDark) 0.86f else 0.90f),
-            contentColor = colors.onSurface,
-            border = BorderStroke(if (isDark) 1.25.dp else 1.5.dp, colors.outline),
+            contentColor = colors.onSurface.copy(alpha = if (enabled) 1f else 0.38f),
+            border = BorderStroke(
+                if (isDark) 1.25.dp else 1.5.dp,
+                colors.outline.copy(alpha = if (enabled) 1f else 0.34f),
+            ),
             tonalElevation = 0.dp,
             shadowElevation = 10.dp,
             interactionSource = interactionSource,
@@ -324,7 +333,7 @@ fun ThemedGlassControl(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(colors.primary.copy(alpha = 0.12f)),
+                    .background(colors.primary.copy(alpha = if (enabled) 0.12f else 0.04f)),
             ) {
                 content()
                 Box(
@@ -333,7 +342,10 @@ fun ThemedGlassControl(
                         .padding(bottom = 4.dp)
                         .width(20.dp)
                         .height(3.dp)
-                        .background(colors.primary, RoundedCornerShape(50)),
+                        .background(
+                            colors.primary.copy(alpha = if (enabled) 1f else 0.32f),
+                            RoundedCornerShape(50),
+                        ),
                 )
             }
         }

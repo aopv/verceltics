@@ -117,6 +117,47 @@ class DebugVercelUiGateway : VercelUiGateway {
     override suspend fun refresh(): Result<VercelDashboardUi> =
         DebugVercelGatewayController.refresh()
 
+    override suspend fun loadProjectAnalytics(
+        project: VercelProjectUi,
+        range: VercelAnalyticsRange,
+        environment: VercelAnalyticsEnvironment,
+    ): Result<VercelAnalyticsLoadUi> = Result.success(
+        VercelAnalyticsLoadUi.Available(
+            VercelAnalyticsDataUi(
+                overview = VercelAnalyticsOverviewUi(
+                    pageViews = 12_806,
+                    visitors = 2_104,
+                    bounceRate = 42.0,
+                ),
+                previousOverview = VercelAnalyticsOverviewUi(
+                    pageViews = 11_920,
+                    visitors = 1_970,
+                    bounceRate = 45.0,
+                ),
+                timeseries = listOf(
+                    VercelAnalyticsPointUi("2026-08-21", 1_320, 240),
+                    VercelAnalyticsPointUi("2026-08-22", 2_410, 390),
+                    VercelAnalyticsPointUi("2026-08-23", 1_860, 310),
+                    VercelAnalyticsPointUi("2026-08-24", 2_920, 480),
+                    VercelAnalyticsPointUi("2026-08-25", 2_150, 360),
+                    VercelAnalyticsPointUi("2026-08-26", 2_146, 324),
+                ),
+                pages = listOf(
+                    VercelAnalyticsBreakdownUi("/", 7_840, 1_380),
+                    VercelAnalyticsBreakdownUi("/pricing", 2_946, 510),
+                ),
+                referrers = listOf(
+                    VercelAnalyticsBreakdownUi("google.com", 5_760, 980),
+                    VercelAnalyticsBreakdownUi("", 4_040, 720),
+                ),
+                countries = listOf(
+                    VercelAnalyticsBreakdownUi("IN", 5_500, 920),
+                    VercelAnalyticsBreakdownUi("US", 3_920, 640),
+                ),
+            ),
+        ),
+    )
+
     override suspend fun disconnect(): Result<Unit> = Result.success(
         DebugVercelGatewayController.disconnect(),
     )

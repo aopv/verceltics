@@ -44,6 +44,85 @@ class VercelApiTest {
     }
 
     @Test
+    fun analyticsUsesVercelWebAnalyticsEndpointAndExactScope() {
+        val apiClient = RecordingHttpClient(HttpResponse(200, byteArrayOf(1), emptyMap()))
+        val analyticsClient = RecordingHttpClient(HttpResponse(200, byteArrayOf(1), emptyMap()))
+        val token = SecretValue.of("vercel-secret")
+        val api = VercelApi(apiClient, FakeParser(), analyticsClient)
+
+        val overview = api.newAnalyticsOverviewCall(
+            token = token,
+            projectId = "project_123",
+            teamId = "team_123",
+            from = "2026-08-20T00:00:00Z",
+            to = "2026-08-27T00:00:00Z",
+            environment = "production",
+        ).execute()
+
+        assertEquals("/web-analytics/v2/overview", analyticsClient.relativePath)
+        assertEquals(
+            listOf(
+                "projectId" to "project_123",
+                "teamId" to "team_123",
+                "from" to "2026-08-20T00:00:00Z",
+                "to" to "2026-08-27T00:00:00Z",
+                "environment" to "production",
+            ),
+            analyticsClient.query,
+        )
+        assertEquals(token, analyticsClient.bearerToken)
+        assertEquals(12_806L, overview.pageViews)
+
+        api.newAnalyticsTimeseriesCall(
+            token = token,
+            projectId = "project_123",
+            teamId = null,
+            from = "from",
+            to = "to",
+            environment = null,
+            groupBy = "path",
+        ).execute()
+        assertEquals("/web-analytics/v2/timeseries", analyticsClient.relativePath)
+        assertEquals(
+            listOf(
+                "projectId" to "project_123",
+                "from" to "from",
+                "to" to "to",
+                "groupBy" to "path",
+            ),
+            analyticsClient.query,
+        )
+    }
+
+    @Test
+    fun teamsAndTeamProjectsUsePaginatedScopedEndpoints() {
+        val client = RecordingHttpClient(HttpResponse(200, byteArrayOf(1), emptyMap()))
+        val api = VercelApi(client, FakeParser())
+        val token = SecretValue.of("vercel-secret")
+
+        val teams = api.newListTeamsCall(token, limit = 100, until = "team-cursor").execute()
+        assertEquals("/v2/teams", client.relativePath)
+        assertEquals(listOf("limit" to "100", "until" to "team-cursor"), client.query)
+        assertEquals("team_123", teams.teams.single().id)
+
+        api.newListProjectsCall(
+            token = token,
+            limit = 100,
+            until = "project-cursor",
+            teamId = "team_123",
+        ).execute()
+        assertEquals("/v9/projects", client.relativePath)
+        assertEquals(
+            listOf(
+                "teamId" to "team_123",
+                "limit" to "100",
+                "until" to "project-cursor",
+            ),
+            client.query,
+        )
+    }
+
+    @Test
     fun authenticationFailureDoesNotExposeTokenOrResponseBody() {
         val tokenText = "never-leak-this-token"
         val client = RecordingHttpClient(
@@ -115,6 +194,23 @@ class VercelApiTest {
             ),
             nextCursor = null,
         )
+
+        override fun parseTeams(bytes: ByteArray): VercelTeamsPage = VercelTeamsPage(
+            teams = listOf(VercelTeam("team_123", "verceltics", "Verceltics", true)),
+            nextCursor = null,
+        )
+
+        override fun parseAnalyticsOverview(bytes: ByteArray): VercelAnalyticsOverview =
+            VercelAnalyticsOverview(pageViews = 12_806, visitors = 2_104, bounceRate = 42.0)
+
+        override fun parseAnalyticsTimeseries(bytes: ByteArray): VercelAnalyticsTimeseries =
+            VercelAnalyticsTimeseries(
+                groups = mapOf(
+                    "all" to listOf(
+                        VercelAnalyticsPoint("2026-08-27", 12_806, 2_104, 42.0),
+                    ),
+                ),
+            )
 
         override fun parseErrorCode(bytes: ByteArray): String? = errorCode
 

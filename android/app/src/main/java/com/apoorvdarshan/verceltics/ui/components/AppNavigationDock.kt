@@ -94,9 +94,13 @@ fun AppNavigationDock(
     showsAboutBadge: Boolean = false,
 ) {
     val fontScale = LocalDensity.current.fontScale
-    val labelScaleFactor = if (fontScale > 1.2f) 1.2f / fontScale else 1f
-    val dockHeight = (62f * fontScale).coerceIn(62f, 76f).dp
-    val searchWidth = (60f * fontScale).coerceIn(60f, 72f).dp
+    val usesIconOnlyLayout = usesIconOnlyNavigationLayout(fontScale)
+    val dockHeight = if (usesIconOnlyLayout) {
+        64.dp
+    } else {
+        (62f + (fontScale - 1f).coerceAtLeast(0f) * 28f).dp
+    }
+    val searchWidth = if (usesIconOnlyLayout) 60.dp else 68.dp
 
     Box(
         modifier = modifier
@@ -135,7 +139,7 @@ fun AppNavigationDock(
                             isSelected = selectedDestination == destination,
                             showsBadge = showsAboutBadge &&
                                 destination == AppNavigationDestination.ABOUT,
-                            labelScaleFactor = labelScaleFactor,
+                            usesIconOnlyLayout = usesIconOnlyLayout,
                             onClick = { onDestinationSelected(destination) },
                             modifier = Modifier.weight(1f),
                         )
@@ -145,7 +149,7 @@ fun AppNavigationDock(
 
             SearchDockButton(
                 onClick = onSearch,
-                labelScaleFactor = labelScaleFactor,
+                usesIconOnlyLayout = usesIconOnlyLayout,
                 modifier = Modifier
                     .width(searchWidth + DockShadowXOffset)
                     .height(dockHeight + DockShadowYOffset),
@@ -154,12 +158,14 @@ fun AppNavigationDock(
     }
 }
 
+internal fun usesIconOnlyNavigationLayout(fontScale: Float): Boolean = fontScale >= 1.3f
+
 @Composable
 private fun NavigationDestinationButton(
     destination: AppNavigationDestination,
     isSelected: Boolean,
     showsBadge: Boolean,
-    labelScaleFactor: Float,
+    usesIconOnlyLayout: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -225,15 +231,14 @@ private fun NavigationDestinationButton(
                         contentDescription = null,
                         modifier = Modifier.size(21.dp),
                     )
-                    Text(
-                        text = destination.label,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = MaterialTheme.typography.labelSmall.fontSize * labelScaleFactor,
-                            lineHeight = MaterialTheme.typography.labelSmall.lineHeight * labelScaleFactor,
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (!usesIconOnlyLayout) {
+                        Text(
+                            text = destination.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
 
                 if (showsBadge) {
@@ -254,7 +259,7 @@ private fun NavigationDestinationButton(
 @Composable
 private fun SearchDockButton(
     onClick: () -> Unit,
-    labelScaleFactor: Float,
+    usesIconOnlyLayout: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -309,15 +314,14 @@ private fun SearchDockButton(
                         contentDescription = null,
                         modifier = Modifier.size(23.dp),
                     )
-                    Text(
-                        text = "Search",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = MaterialTheme.typography.labelSmall.fontSize * labelScaleFactor,
-                            lineHeight = MaterialTheme.typography.labelSmall.lineHeight * labelScaleFactor,
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (!usesIconOnlyLayout) {
+                        Text(
+                            text = "Search",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }

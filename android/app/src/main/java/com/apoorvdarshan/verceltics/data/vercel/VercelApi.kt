@@ -11,6 +11,7 @@ import com.apoorvdarshan.verceltics.data.network.map
 class VercelApi(
     private val httpClient: ProviderHttpClient = SecureProviderHttpClient(BASE_URL),
     private val jsonParser: VercelJsonParser = AndroidVercelJsonParser(),
+    private val analyticsHttpClient: ProviderHttpClient = SecureProviderHttpClient(ANALYTICS_BASE_URL),
 ) {
     fun newValidatePersonalTokenCall(token: SecretValue): CancelableCall<VercelUser> =
         httpClient.newGetCall(
@@ -25,9 +26,11 @@ class VercelApi(
         token: SecretValue,
         limit: Int = DEFAULT_PROJECT_LIMIT,
         until: String? = null,
+        teamId: String? = null,
     ): CancelableCall<VercelProjectsPage> {
         require(limit in 1..MAX_PROJECT_LIMIT) { "Vercel project limit must be between 1 and 100." }
         val query = buildList {
+            teamId?.takeIf(String::isNotBlank)?.let { add("teamId" to it) }
             add("limit" to limit.toString())
             until?.takeIf(String::isNotBlank)?.let { add("until" to it) }
         }
@@ -39,6 +42,71 @@ class VercelApi(
             requireSuccessful(response, "load Vercel projects")
             response.useBody(jsonParser::parseProjects)
         }
+    }
+
+    fun newListTeamsCall(
+        token: SecretValue,
+        limit: Int = DEFAULT_PROJECT_LIMIT,
+        until: String? = null,
+    ): CancelableCall<VercelTeamsPage> {
+        require(limit in 1..MAX_PROJECT_LIMIT) { "Vercel team limit must be between 1 and 100." }
+        val query = buildList {
+            add("limit" to limit.toString())
+            until?.takeIf(String::isNotBlank)?.let { add("until" to it) }
+        }
+        return httpClient.newGetCall(
+            relativePath = "/v2/teams",
+            queryParameters = query,
+            bearerToken = token,
+        ).map { response ->
+            requireSuccessful(response, "load Vercel teams")
+            response.useBody(jsonParser::parseTeams)
+        }
+    }
+
+    fun newAnalyticsOverviewCall(
+        token: SecretValue,
+        projectId: String,
+        teamId: String?,
+        from: String,
+        to: String,
+        environment: String?,
+    ): CancelableCall<VercelAnalyticsOverview> = analyticsHttpClient.newGetCall(
+        relativePath = "/web-analytics/v2/overview",
+        queryParameters = analyticsQuery(
+            projectId = projectId,
+            teamId = teamId,
+            from = from,
+            to = to,
+            environment = environment,
+        ),
+        bearerToken = token,
+    ).map { response ->
+        requireSuccessful(response, "load Vercel Web Analytics")
+        response.useBody(jsonParser::parseAnalyticsOverview)
+    }
+
+    fun newAnalyticsTimeseriesCall(
+        token: SecretValue,
+        projectId: String,
+        teamId: String?,
+        from: String,
+        to: String,
+        environment: String?,
+        groupBy: String? = null,
+    ): CancelableCall<VercelAnalyticsTimeseries> = analyticsHttpClient.newGetCall(
+        relativePath = "/web-analytics/v2/timeseries",
+        queryParameters = analyticsQuery(
+            projectId = projectId,
+            teamId = teamId,
+            from = from,
+            to = to,
+            environment = environment,
+        ) + listOfNotNull(groupBy?.takeIf(String::isNotBlank)?.let { "groupBy" to it }),
+        bearerToken = token,
+    ).map { response ->
+        requireSuccessful(response, "load Vercel Web Analytics")
+        response.useBody(jsonParser::parseAnalyticsTimeseries)
     }
 
     fun accountForValidatedUser(
@@ -53,6 +121,20 @@ class VercelApi(
         createdAtMillis = nowMillis,
         updatedAtMillis = nowMillis,
     )
+
+    private fun analyticsQuery(
+        projectId: String,
+        teamId: String?,
+        from: String,
+        to: String,
+        environment: String?,
+    ): List<Pair<String, String>> = buildList {
+        add("projectId" to projectId)
+        teamId?.takeIf(String::isNotBlank)?.let { add("teamId" to it) }
+        add("from" to from)
+        add("to" to to)
+        environment?.takeIf(String::isNotBlank)?.let { add("environment" to it) }
+    }
 
     private fun requireSuccessful(response: HttpResponse, operation: String) {
         if (response.statusCode in 200..299) return
@@ -83,6 +165,7 @@ class VercelApi(
 
     companion object {
         const val BASE_URL: String = "https://api.vercel.com/"
+        const val ANALYTICS_BASE_URL: String = "https://vercel.com/api/"
         private const val DEFAULT_PROJECT_LIMIT = 100
         private const val MAX_PROJECT_LIMIT = 100
     }

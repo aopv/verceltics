@@ -68,7 +68,8 @@ class VercelticsNavigationTest {
         waitForTag("workspace.hosting.connected")
 
         compose.onNodeWithTag("workspace.hosting.project.test-project").performClick()
-        compose.onNodeWithTag("workspace.hosting.projectDetail").assertIsDisplayed()
+        compose.onNodeWithTag("workspace.hosting.analytics").assertIsDisplayed()
+        compose.onNodeWithTag("workspace.hosting.analytics.chart").assertIsDisplayed()
 
         compose.activityRule.scenario.onActivity { activity ->
             activity.onBackPressedDispatcher.onBackPressed()

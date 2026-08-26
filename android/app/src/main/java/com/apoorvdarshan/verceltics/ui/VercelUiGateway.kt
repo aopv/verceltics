@@ -14,6 +14,12 @@ interface VercelUiGateway {
 
     suspend fun refresh(): Result<VercelDashboardUi>
 
+    suspend fun loadProjectAnalytics(
+        project: VercelProjectUi,
+        range: VercelAnalyticsRange,
+        environment: VercelAnalyticsEnvironment,
+    ): Result<VercelAnalyticsLoadUi>
+
     suspend fun disconnect(): Result<Unit>
 }
 
@@ -32,6 +38,7 @@ sealed interface VercelRestoreUi {
 data class VercelDashboardUi(
     val account: VercelAccountUi,
     val projects: List<VercelProjectUi>,
+    val warning: String? = null,
 )
 
 data class VercelAccountUi(
@@ -44,6 +51,70 @@ data class VercelProjectUi(
     val name: String,
     val framework: String?,
     val updatedAtMillis: Long?,
+    val teamId: String? = null,
+)
+
+enum class VercelAnalyticsRange(
+    val shortLabel: String,
+    val controlLabel: String,
+    val durationMillis: Long,
+) {
+    DAY("24h", "24 Hours", 86_400_000L),
+    WEEK("7d", "7 Days", 604_800_000L),
+    MONTH("30d", "30 Days", 2_592_000_000L),
+    QUARTER("3mo", "3 Months", 7_776_000_000L),
+    YEAR("12mo", "12 Months", 31_536_000_000L),
+}
+
+enum class VercelAnalyticsEnvironment(
+    val controlLabel: String,
+    val queryValue: String?,
+) {
+    PRODUCTION("Production", "production"),
+    PREVIEW("Preview", "preview"),
+    ALL("All", null),
+}
+
+sealed interface VercelAnalyticsLoadUi {
+    data class Available(val data: VercelAnalyticsDataUi) : VercelAnalyticsLoadUi
+
+    data class Unavailable(val message: String) : VercelAnalyticsLoadUi
+}
+
+data class VercelAnalyticsDataUi(
+    val overview: VercelAnalyticsOverviewUi,
+    val previousOverview: VercelAnalyticsOverviewUi?,
+    val timeseries: List<VercelAnalyticsPointUi>,
+    val pages: List<VercelAnalyticsBreakdownUi>,
+    val referrers: List<VercelAnalyticsBreakdownUi>,
+    val countries: List<VercelAnalyticsBreakdownUi>,
+    val devices: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val browsers: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val operatingSystems: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val utmSources: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val routes: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val hostnames: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val events: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val flags: List<VercelAnalyticsBreakdownUi> = emptyList(),
+    val queryParameters: List<VercelAnalyticsBreakdownUi> = emptyList(),
+)
+
+data class VercelAnalyticsOverviewUi(
+    val pageViews: Long,
+    val visitors: Long,
+    val bounceRate: Double?,
+)
+
+data class VercelAnalyticsPointUi(
+    val key: String,
+    val pageViews: Long,
+    val visitors: Long,
+)
+
+data class VercelAnalyticsBreakdownUi(
+    val key: String,
+    val pageViews: Long,
+    val visitors: Long,
 )
 
 /** Safe production fallback while the data adapter is being composed by the app entry point. */
@@ -56,6 +127,13 @@ object UnconfiguredVercelUiGateway : VercelUiGateway {
 
     override suspend fun refresh(): Result<VercelDashboardUi> =
         Result.failure(IllegalStateException("Connect a Vercel account first."))
+
+    override suspend fun loadProjectAnalytics(
+        project: VercelProjectUi,
+        range: VercelAnalyticsRange,
+        environment: VercelAnalyticsEnvironment,
+    ): Result<VercelAnalyticsLoadUi> =
+        Result.failure(IllegalStateException("The native Vercel connector is not available yet."))
 
     override suspend fun disconnect(): Result<Unit> = Result.success(Unit)
 }

@@ -20,20 +20,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,10 +50,12 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +74,9 @@ import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderLogo
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
+import com.apoorvdarshan.verceltics.ui.components.ThemedActionButton
+import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
+import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
 import java.text.DateFormat
 import java.util.Date
@@ -93,6 +97,7 @@ fun VercelWorkspaceScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
+    val analyticsState by vercelConnectionViewModel.analyticsState.collectAsStateWithLifecycle()
     var selectedProjectId by rememberSaveable { mutableStateOf<String?>(null) }
     var lastHandledRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
@@ -128,10 +133,12 @@ fun VercelWorkspaceScreen(
         }
     }
 
-    LaunchedEffect(state.dashboard?.projects) {
+    LaunchedEffect(state.status, state.dashboard?.projects) {
         val projectId = selectedProjectId ?: return@LaunchedEffect
-        if (state.dashboard?.projects?.none { it.id == projectId } != false) {
+        val projectStillExists = state.dashboard?.projects?.any { it.id == projectId }
+        if (shouldClearSavedProjectSelection(state.status, projectStillExists)) {
             selectedProjectId = null
+            vercelConnectionViewModel.closeProjectAnalytics()
         }
     }
 
@@ -139,15 +146,27 @@ fun VercelWorkspaceScreen(
         state.dashboard?.projects?.firstOrNull { it.id == projectId }
     }
 
+    LaunchedEffect(selectedProject?.id) {
+        selectedProject?.let(vercelConnectionViewModel::openProjectAnalytics)
+    }
+
     BackHandler(enabled = selectedProject != null) {
         selectedProjectId = null
+        vercelConnectionViewModel.closeProjectAnalytics()
     }
 
     when {
-        selectedProject != null -> VercelProjectDetailScreen(
+        selectedProject != null -> VercelAnalyticsScreen(
             project = selectedProject,
             account = requireNotNull(state.dashboard).account,
-            onBack = { selectedProjectId = null },
+            state = analyticsState,
+            onBack = {
+                selectedProjectId = null
+                vercelConnectionViewModel.closeProjectAnalytics()
+            },
+            onRefresh = vercelConnectionViewModel::refreshProjectAnalytics,
+            onRangeSelected = vercelConnectionViewModel::selectAnalyticsRange,
+            onEnvironmentSelected = vercelConnectionViewModel::selectAnalyticsEnvironment,
             modifier = modifier,
         )
 
@@ -187,7 +206,10 @@ fun VercelWorkspaceScreen(
                 selectedProjectId = null
                 vercelConnectionViewModel.disconnect()
             },
-            onProjectSelected = { selectedProjectId = it.id },
+            onProjectSelected = { project ->
+                selectedProjectId = project.id
+                vercelConnectionViewModel.openProjectAnalytics(project)
+            },
             modifier = modifier,
         )
     }
@@ -206,60 +228,71 @@ private fun SavedVercelUnavailableWorkspace(
     val haptic = LocalHapticFeedback.current
 
     if (showDisconnectConfirmation) {
-        AlertDialog(
+        ThemedAlertDialog(
             onDismissRequest = { showDisconnectConfirmation = false },
-            title = { Text("Disconnect saved Vercel account?") },
-            text = { Text("The encrypted token will be removed from this Android device.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showDisconnectConfirmation = false
-                        onDisconnect()
-                    },
-                ) { Text("Disconnect") }
+            title = "Disconnect saved Vercel account?",
+            message = "The encrypted token will be removed from this Android device.",
+            confirmText = "DISCONNECT",
+            confirmTone = ThemedActionTone.DESTRUCTIVE,
+            dismissText = "KEEP ACCOUNT",
+            onConfirm = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                showDisconnectConfirmation = false
+                onDisconnect()
             },
-            dismissButton = {
-                TextButton(onClick = { showDisconnectConfirmation = false }) {
-                    Text("Keep account")
-                }
-            },
+            enabled = !isRefreshing,
+            testTag = "workspace.hosting.savedUnavailable.disconnectDialog",
         )
     }
 
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(18.dp)
             .testTag("workspace.hosting.savedUnavailable"),
+        contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        OffsetPanel(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+        item(key = "recovery") {
+            OffsetPanel(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
+                color = MaterialTheme.colorScheme.surface,
             ) {
-                StatusPill(text = "Saved securely", color = MaterialTheme.colorScheme.tertiary)
-                Text(
-                    account?.displayName ?: "Saved Vercel account",
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-                Text(
-                    "The encrypted account is still on this device, but its live dashboard is unavailable. Reconnecting will not overwrite it.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                HostingFeedbackBanner(error)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TextButton(enabled = !isRefreshing, onClick = onRetry) {
-                        Text(if (isRefreshing) "Retrying…" else "Retry")
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    StatusPill(text = "Saved securely", color = MaterialTheme.colorScheme.tertiary)
+                    Text(
+                        account?.displayName ?: "Saved Vercel account",
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                    Text(
+                        "The encrypted account is still on this device, but its live dashboard is unavailable. Reconnecting will not overwrite it.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    HostingFeedbackBanner(error)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ThemedActionButton(
+                            text = if (isRefreshing) "RETRYING…" else "RETRY",
+                            enabled = !isRefreshing,
+                            isBusy = isRefreshing,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                onRetry()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        ThemedActionButton(
+                            text = "DISCONNECT",
+                            enabled = !isRefreshing,
+                            tone = ThemedActionTone.DESTRUCTIVE,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showDisconnectConfirmation = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                    TextButton(
-                        enabled = !isRefreshing,
-                        onClick = { showDisconnectConfirmation = true },
-                    ) { Text("Disconnect") }
                 }
             }
         }
@@ -295,28 +328,21 @@ private fun ConnectedVercelWorkspace(
     }
 
     if (showDisconnectConfirmation) {
-        AlertDialog(
+        ThemedAlertDialog(
             onDismissRequest = { showDisconnectConfirmation = false },
-            shape = MaterialTheme.shapes.medium,
-            containerColor = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp,
-            title = { Text("Disconnect Vercel?") },
-            text = { Text("The saved token will be removed from this Android device.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showDisconnectConfirmation = false
-                        query = ""
-                        onDisconnect()
-                    },
-                ) { Text("Disconnect") }
+            title = "Disconnect Vercel?",
+            message = "The saved token will be removed from this Android device.",
+            confirmText = "DISCONNECT",
+            confirmTone = ThemedActionTone.DESTRUCTIVE,
+            dismissText = "KEEP ACCOUNT",
+            onConfirm = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                showDisconnectConfirmation = false
+                query = ""
+                onDisconnect()
             },
-            dismissButton = {
-                TextButton(onClick = { showDisconnectConfirmation = false }) {
-                    Text("Keep account")
-                }
-            },
+            enabled = !isRefreshing,
+            testTag = "workspace.hosting.disconnectDialog",
         )
     }
 
@@ -425,9 +451,10 @@ private fun ConnectedVercelWorkspace(
 
             ThemedGlassControl(
                 modifier = Modifier.size(50.dp),
+                enabled = !isRefreshing,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    if (!isRefreshing) onRefresh()
+                    onRefresh()
                 },
                 testTag = "workspace.hosting.refresh",
             ) {
@@ -441,14 +468,24 @@ private fun ConnectedVercelWorkspace(
                                 "Refresh hosting projects"
                             }
                             role = Role.Button
+                            if (isRefreshing) {
+                                progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+                            }
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Rounded.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(25.dp),
-                    )
+                    if (isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(21.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(25.dp),
+                        )
+                    }
                 }
             }
         }
@@ -525,6 +562,12 @@ private fun ConnectedVercelWorkspace(
             if (error != null) {
                 item(key = "error") {
                     HostingFeedbackBanner(error)
+                }
+            }
+
+            dashboard.warning?.let { warning ->
+                item(key = "partial-warning") {
+                    HostingWarningBanner(warning)
                 }
             }
 
@@ -632,169 +675,13 @@ private fun VercelWorkspaceProjectRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = "›",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = "Open ${project.name} analytics",
+                modifier = Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-@Composable
-private fun VercelProjectDetailScreen(
-    project: VercelProjectUi,
-    account: VercelAccountUi,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val haptic = LocalHapticFeedback.current
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("workspace.hosting.projectDetail"),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 70.dp)
-                .padding(horizontal = 18.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ThemedGlassControl(
-                modifier = Modifier.size(50.dp),
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onBack()
-                },
-                testTag = "workspace.hosting.projectDetail.back",
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .semantics {
-                            contentDescription = "Back to Vercel projects"
-                            role = Role.Button
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = null,
-                        modifier = Modifier.size(25.dp),
-                    )
-                }
-            }
-            Text(
-                text = project.name,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp)
-                    .semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            contentPadding = PaddingValues(start = 18.dp, top = 12.dp, end = 18.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item(key = "identity") {
-                OffsetPanel(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = project.name,
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Text(
-                            text = project.framework ?: "Vercel project",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
-                        )
-                        StatusPill(
-                            text = "Connected",
-                            color = MaterialTheme.colorScheme.tertiary,
-                        )
-                    }
-                }
-            }
-
-            item(key = "overview") {
-                OffsetPanel(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    testTag = "workspace.hosting.projectDetail.overview",
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(
-                            text = "Overview",
-                            modifier = Modifier.semantics { heading() },
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                        ProjectDetailValue("Project ID", project.id)
-                        ProjectDetailValue("Framework", project.framework ?: "Not reported")
-                        ProjectDetailValue(
-                            "Last updated",
-                            project.updatedAtMillis?.let(::formatProjectDate) ?: "Not reported",
-                        )
-                        ProjectDetailValue("Account", account.displayName)
-                    }
-                }
-            }
-
-            item(key = "analytics-status") {
-                OffsetPanel(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = "Analytics",
-                            modifier = Modifier.semantics { heading() },
-                            style = MaterialTheme.typography.titleLarge,
-                        )
-                        Text(
-                            text = "The project route is native and ready. Web Analytics is the next screen in the Android migration, so no placeholder metrics are shown.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProjectDetailValue(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-        )
     }
 }
 
@@ -812,6 +699,25 @@ private fun HostingFeedbackBanner(message: String) {
         verticalAlignment = Alignment.Top,
     ) {
         Text("!", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black)
+        Spacer(Modifier.width(10.dp))
+        Text(message, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun HostingWarningBanner(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Polite }
+            .background(
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
+                MaterialTheme.shapes.medium,
+            )
+            .padding(14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text("!", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
         Spacer(Modifier.width(10.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium)
     }
@@ -851,3 +757,14 @@ private fun HostingLoadingScreen(modifier: Modifier = Modifier) {
 
 private fun formatProjectDate(timestamp: Long): String =
     DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestamp))
+
+internal fun shouldClearSavedProjectSelection(
+    status: VercelConnectionStatus,
+    projectStillExists: Boolean?,
+): Boolean = when (status) {
+    VercelConnectionStatus.RESTORING -> false
+    VercelConnectionStatus.CONNECTED -> projectStillExists != true
+    VercelConnectionStatus.DISCONNECTED,
+    VercelConnectionStatus.SAVED_UNAVAILABLE,
+    -> true
+}

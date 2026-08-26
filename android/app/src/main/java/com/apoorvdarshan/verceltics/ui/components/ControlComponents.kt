@@ -3,7 +3,6 @@ package com.apoorvdarshan.verceltics.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +60,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
+import com.apoorvdarshan.verceltics.ui.theme.LocalVercelticsDarkTheme
 
 private val PanelShape = RoundedCornerShape(4.dp)
 
@@ -76,8 +76,9 @@ fun OffsetPanel(
     testTag: String? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val resolvedShadowOffset = shadowOffset ?: if (isSystemInDarkTheme()) 2.dp else 4.dp
-    val borderWidth = if (isSystemInDarkTheme()) 1.dp else 2.dp
+    val isDark = LocalVercelticsDarkTheme.current
+    val resolvedShadowOffset = shadowOffset ?: if (isDark) 2.dp else 4.dp
+    val borderWidth = if (isDark) 1.dp else 2.dp
     Box(
         modifier = modifier.padding(
             end = resolvedShadowOffset,
@@ -133,6 +134,7 @@ fun ControlSearchField(
     onSearch: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
+    val isDark = LocalVercelticsDarkTheme.current
     val haptic = LocalHapticFeedback.current
     val textInteractionSource = remember { MutableInteractionSource() }
     LaunchedEffect(textInteractionSource) {
@@ -149,7 +151,7 @@ fun ControlSearchField(
         color = colors.primary.copy(alpha = 0.08f).compositeOver(colors.surface),
         shape = PanelShape,
         tonalElevation = 0.dp,
-        border = BorderStroke(if (isSystemInDarkTheme()) 1.dp else 2.dp, colors.outline),
+        border = BorderStroke(if (isDark) 1.dp else 2.dp, colors.outline),
     ) {
         BasicTextField(
             value = value,
@@ -298,7 +300,7 @@ fun ThemedGlassControl(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalVercelticsDarkTheme.current
     val shadowOffset = if (isDark) 2.dp else 3.dp
     val interactionSource = remember { MutableInteractionSource() }
     Box(modifier = modifier) {

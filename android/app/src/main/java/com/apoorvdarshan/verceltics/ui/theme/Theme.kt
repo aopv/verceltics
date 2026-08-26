@@ -7,7 +7,9 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +71,9 @@ private val VercelticsShapes = Shapes(
     extraLarge = RoundedCornerShape(24.dp),
 )
 
+/** The resolved app appearance, including an explicit in-app Light or Dark override. */
+val LocalVercelticsDarkTheme = staticCompositionLocalOf { false }
+
 @Composable
 fun VercelticsTheme(
     appearance: AboutAppearance,
@@ -99,12 +104,14 @@ fun VercelticsTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = VercelticsTypography,
-        shapes = VercelticsShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalVercelticsDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = VercelticsTypography,
+            shapes = VercelticsShapes,
+            content = content,
+        )
+    }
 }
 
 internal fun AboutAppearance.resolveDarkTheme(systemDarkTheme: Boolean): Boolean = when (this) {

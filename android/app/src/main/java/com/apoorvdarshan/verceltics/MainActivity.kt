@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.rememberCoroutineScope
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelticsApp
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenController
 import com.apoorvdarshan.verceltics.ui.screens.about.SharedPreferencesAppearancePreferenceStore
@@ -24,6 +25,11 @@ class MainActivity : ComponentActivity() {
         get() = (application as VercelticsApplication).vercelGateway
     private val vercelConnectionViewModel by viewModels<VercelConnectionViewModel> {
         VercelConnectionViewModel.Factory(vercelGateway)
+    }
+    private val pageSpeedGateway
+        get() = (application as VercelticsApplication).pageSpeedGateway
+    private val pageSpeedViewModel by viewModels<PageSpeedViewModel> {
+        PageSpeedViewModel.Factory(pageSpeedGateway)
     }
     private val aboutController by lazy(LazyThreadSafetyMode.NONE) {
         AboutScreenController(
@@ -42,6 +48,7 @@ class MainActivity : ComponentActivity() {
             VercelticsTheme(appearance = aboutState.appearance) {
                 VercelticsApp(
                     vercelConnectionViewModel = vercelConnectionViewModel,
+                    pageSpeedViewModel = pageSpeedViewModel,
                     aboutState = aboutState,
                     onAboutAction = { dispatchAboutAction(it, aboutScope) },
                 )

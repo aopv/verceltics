@@ -3,16 +3,24 @@ package com.apoorvdarshan.verceltics.ui
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,9 +31,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -34,6 +47,14 @@ import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.domain.Workspace
 import com.apoorvdarshan.verceltics.ui.components.AppNavigationDestination
 import com.apoorvdarshan.verceltics.ui.components.AppNavigationDock
+import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
+import com.apoorvdarshan.verceltics.ui.components.ProviderMark
+import com.apoorvdarshan.verceltics.ui.components.StatusPill
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedCacheState
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedConnectionStatus
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedRoute
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedUiState
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
 import com.apoorvdarshan.verceltics.ui.screens.AboutScreen
 import com.apoorvdarshan.verceltics.ui.screens.ProviderDetailScreen
 import com.apoorvdarshan.verceltics.ui.screens.VercelWorkspaceScreen
@@ -46,6 +67,7 @@ import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
 
 private const val UI_PREFERENCES = "verceltics.ui"
 private const val LAST_PRIMARY_WORKSPACE = "lastPrimaryWorkspace"
+private const val PAGE_SPEED_PROVIDER_ID = "pageSpeed"
 
 private enum class MainDestination(
     val id: String,
@@ -86,6 +108,7 @@ private enum class MainDestination(
 @Composable
 fun VercelticsApp(
     vercelConnectionViewModel: VercelConnectionViewModel,
+    pageSpeedViewModel: PageSpeedViewModel,
     aboutState: AboutScreenState = defaultAboutScreenState(),
     onAboutAction: (AboutScreenAction) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -108,6 +131,7 @@ fun VercelticsApp(
     var hostingRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
     var hostingSearchAvailable by rememberSaveable { mutableStateOf(false) }
     val connectionState by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
+    val pageSpeedState by pageSpeedViewModel.uiState.collectAsStateWithLifecycle()
     val destination = MainDestination.fromId(destinationId)
     val provider = providerId?.let(IntegrationCatalog::provider)
     val destinationState = rememberSaveableStateHolder()
@@ -141,7 +165,7 @@ fun VercelticsApp(
         hostingRefreshRequestId += 1
     }
 
-    BackHandler(enabled = provider != null) {
+    BackHandler(enabled = provider != null && provider.id != PAGE_SPEED_PROVIDER_ID) {
         providerId = null
     }
 
@@ -183,12 +207,20 @@ fun VercelticsApp(
                 .background(MaterialTheme.colorScheme.background),
         ) {
             if (provider != null) {
-                ProviderDetailScreen(
-                    provider = provider,
-                    vercelConnectionViewModel = vercelConnectionViewModel,
-                    onBack = { providerId = null },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                if (provider.id == PAGE_SPEED_PROVIDER_ID) {
+                    PageSpeedRoute(
+                        viewModel = pageSpeedViewModel,
+                        onBack = { providerId = null },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    ProviderDetailScreen(
+                        provider = provider,
+                        vercelConnectionViewModel = vercelConnectionViewModel,
+                        onBack = { providerId = null },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             } else {
                 destinationState.SaveableStateProvider(destination.id) {
                     when (destination) {
@@ -213,6 +245,17 @@ fun VercelticsApp(
                             onConnectProvider = { providerId = it.id },
                             onAccountAction = {},
                             modifier = Modifier.fillMaxSize(),
+                            connectedContent = if (pageSpeedState.isConnected) {
+                                {
+                                    PageSpeedConnectionCard(
+                                        state = pageSpeedState,
+                                        onClick = { providerId = PAGE_SPEED_PROVIDER_ID },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                         )
 
                         MainDestination.ABOUT -> AboutScreen(
@@ -223,6 +266,79 @@ fun VercelticsApp(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PageSpeedConnectionCard(
+    state: PageSpeedUiState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val provider = remember { checkNotNull(IntegrationCatalog.provider(PAGE_SPEED_PROVIDER_ID)) }
+    val accent = Color(provider.accentColor)
+    val haptic = LocalHapticFeedback.current
+    val subtitle = state.dashboard?.siteUrl
+        ?: state.savedSiteUrl
+        ?: state.error
+        ?: "Saved connection"
+    val status = when (state.status) {
+        PageSpeedConnectionStatus.CONNECTED -> when (state.dashboard?.cacheState) {
+            PageSpeedCacheState.LIVE -> "Live"
+            PageSpeedCacheState.CACHED_FRESH -> "Saved"
+            PageSpeedCacheState.CACHED_STALE -> "Stale"
+            null -> "Saved"
+        }
+        PageSpeedConnectionStatus.SAVED_UNAVAILABLE -> "Attention"
+        PageSpeedConnectionStatus.RESTORING -> "Restoring"
+        PageSpeedConnectionStatus.DISCONNECTED -> "Disconnected"
+    }
+    val statusColor = if (state.status == PageSpeedConnectionStatus.SAVED_UNAVAILABLE) {
+        MaterialTheme.colorScheme.error
+    } else {
+        accent
+    }
+
+    OffsetPanel(
+        modifier = modifier.heightIn(min = 88.dp),
+        color = MaterialTheme.colorScheme.surface,
+        borderColor = accent,
+        shadowColor = accent,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+            onClick()
+        },
+        testTag = "workspace.sites.pageSpeedConnection",
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ProviderMark(provider = provider, size = 46.dp)
+            Spacer(Modifier.width(13.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = provider.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = subtitle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            StatusPill(text = status, color = statusColor)
         }
     }
 }

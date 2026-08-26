@@ -10,12 +10,19 @@ import com.apoorvdarshan.verceltics.ui.DebugVercelScenario
 import com.apoorvdarshan.verceltics.ui.DebugVercelUiGateway
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelticsApp
+import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedGatewayController
+import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedScenario
+import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedUiGateway
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 
 /** Isolated debug-only host used by instrumented UI tests. */
 class VercelticsTestActivity : ComponentActivity() {
     private val vercelConnectionViewModel by viewModels<VercelConnectionViewModel> {
         VercelConnectionViewModel.Factory(DebugVercelUiGateway())
+    }
+    private val pageSpeedViewModel by viewModels<PageSpeedViewModel> {
+        PageSpeedViewModel.Factory(DebugPageSpeedUiGateway())
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,7 +33,10 @@ class VercelticsTestActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             VercelticsTheme {
-                VercelticsApp(vercelConnectionViewModel = vercelConnectionViewModel)
+                VercelticsApp(
+                    vercelConnectionViewModel = vercelConnectionViewModel,
+                    pageSpeedViewModel = pageSpeedViewModel,
+                )
             }
         }
     }
@@ -44,6 +54,11 @@ class VercelticsTestActivity : ComponentActivity() {
 
     fun releaseConnect() {
         DebugVercelGatewayController.releaseConnect()
+    }
+
+    fun configurePageSpeedGateway(scenario: DebugPageSpeedScenario) {
+        DebugPageSpeedGatewayController.configure(scenario)
+        pageSpeedViewModel.restore()
     }
 
     companion object {

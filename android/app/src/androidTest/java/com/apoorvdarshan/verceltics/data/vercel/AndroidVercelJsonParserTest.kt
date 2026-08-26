@@ -12,7 +12,7 @@ class AndroidVercelJsonParserTest {
     @Test
     fun parsesCurrentOverviewWithoutRequiringLegacyBounceRate() {
         val overview = parser.parseAnalyticsOverview(
-            """{\"total\":12806,\"devices\":2104,\"extra\":\"ignored\"}""".encodeToByteArray(),
+            """{"total":12806,"devices":2104,"extra":"ignored"}""".encodeToByteArray(),
         )
 
         assertEquals(12_806L, overview.pageViews)
@@ -46,10 +46,10 @@ class AndroidVercelJsonParserTest {
     @Test
     fun rejectsIncompleteAnalyticsInsteadOfInventingZeroMetrics() {
         assertThrows(VercelResponseFormatException::class.java) {
-            parser.parseAnalyticsOverview("""{\"total\":20}""".encodeToByteArray())
+            parser.parseAnalyticsOverview("""{"total":20}""".encodeToByteArray())
         }
         assertThrows(VercelResponseFormatException::class.java) {
-            parser.parseAnalyticsTimeseries("""{\"data\":{}}""".encodeToByteArray())
+            parser.parseAnalyticsTimeseries("""{"data":{}}""".encodeToByteArray())
         }
     }
 

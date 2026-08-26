@@ -46,8 +46,8 @@ class AboutScreenTest {
 
         compose.onNodeWithTag("about.version")
             .assertIsDisplayed()
-            .assertTextContains("BUILD 42")
-            .assertTextContains("VERSION 3.0")
+            .assertTextContains("BUILD 42", substring = true)
+            .assertTextContains("VERSION 3.0", substring = true)
         compose.onNodeWithTag("about.appearance.system").assertIsSelected()
         compose.onNodeWithTag("about.appearance.dark").performClick()
         assertEquals(

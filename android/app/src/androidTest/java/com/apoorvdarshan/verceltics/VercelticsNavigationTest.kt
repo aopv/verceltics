@@ -22,6 +22,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import com.apoorvdarshan.verceltics.ui.DebugVercelGatewayController
 import com.apoorvdarshan.verceltics.ui.DebugVercelScenario
+import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedGatewayController
+import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedScenario
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -36,6 +38,7 @@ class VercelticsNavigationTest {
         closeSoftKeyboard()
         compose.activityRule.scenario.onActivity { activity ->
             activity.configureGateway(DebugVercelScenario.DISCONNECTED)
+            activity.configurePageSpeedGateway(DebugPageSpeedScenario.DISCONNECTED)
         }
         waitForTag("mainNavigation.hosting")
         compose.onNodeWithTag("mainNavigation.hosting").performClick()
@@ -180,6 +183,54 @@ class VercelticsNavigationTest {
     }
 
     @Test
+    fun sitesCatalogOpensNativePageSpeedRouteAndBackClearsCredentialProtection() {
+        openPageSpeedDetail()
+
+        compose.onNodeWithTag("pagespeed.connectionForm").assertIsDisplayed()
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.activityRule.scenario.onActivity { activity ->
+            check(
+                activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
+            )
+        }
+
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+
+        waitForTag("workspace.sites.empty")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+        compose.activityRule.scenario.onActivity { activity ->
+            check(
+                activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0,
+            )
+        }
+    }
+
+    @Test
+    fun restoredPageSpeedConnectionIsVisibleAndKeepsActivityScopedDashboardOnRecreation() {
+        configurePageSpeedGateway(DebugPageSpeedScenario.CONNECTED)
+        compose.onNodeWithTag("mainNavigation.sites").performClick()
+
+        waitForTag("workspace.sites.pageSpeedConnection")
+        compose.onNodeWithTag("workspace.sites.connected").assertIsDisplayed()
+        compose.onAllNodesWithTag("workspace.sites.empty").assertCountEquals(0)
+        compose.onNodeWithTag("workspace.sites.pageSpeedConnection").assertIsDisplayed()
+        assertEquals(1, DebugPageSpeedGatewayController.restoreCalls)
+        assertEquals(0, DebugPageSpeedGatewayController.refreshCalls)
+
+        compose.onNodeWithTag("workspace.sites.pageSpeedConnection").performClick()
+        waitForTag("pagespeed.dashboard")
+        val restoreCallsBeforeRecreation = DebugPageSpeedGatewayController.restoreCalls
+
+        compose.activityRule.scenario.recreate()
+
+        waitForTag("pagespeed.dashboard")
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        assertEquals(restoreCallsBeforeRecreation, DebugPageSpeedGatewayController.restoreCalls)
+    }
+
+    @Test
     fun topLevelSystemBackDoesNotReplayTabSelections() {
         compose.onNodeWithTag("mainNavigation.sites").performClick()
         compose.onNodeWithTag("workspace.sites.empty").assertIsDisplayed()
@@ -265,6 +316,15 @@ class VercelticsNavigationTest {
         waitForTag("providerDetail.vercel")
     }
 
+    private fun openPageSpeedDetail() {
+        compose.onNodeWithTag("mainNavigation.sites").performClick()
+        waitForTag("workspace.sites.empty")
+        compose.onNodeWithTag("workspace.sites.connect").performClick()
+        waitForTag("connection.catalog.sites")
+        compose.onNodeWithTag("provider.pageSpeed").performClick()
+        waitForTag("pagespeed.screen")
+    }
+
     private fun configureGateway(
         scenario: DebugVercelScenario,
         blockConnect: Boolean = false,
@@ -277,6 +337,12 @@ class VercelticsNavigationTest {
         }
     }
 
+    private fun configurePageSpeedGateway(scenario: DebugPageSpeedScenario) {
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.configurePageSpeedGateway(scenario)
+        }
+    }
+
     private fun waitForTag(tag: String) {
         compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
             compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
@@ -284,7 +350,8 @@ class VercelticsNavigationTest {
     }
 
     private companion object {
-        const val TIMEOUT_MILLIS = 8_000L
+        // A cold, headless emulator can spend several seconds compiling the first Compose frame.
+        const val TIMEOUT_MILLIS = 20_000L
         val primaryNavigationTags = listOf(
             "mainNavigation.hosting",
             "mainNavigation.registrars",

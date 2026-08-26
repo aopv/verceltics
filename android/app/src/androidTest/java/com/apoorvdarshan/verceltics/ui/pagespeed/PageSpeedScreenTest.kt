@@ -68,7 +68,7 @@ class PageSpeedScreenTest {
         composeRule.onNodeWithTag("pagespeed.dashboard").assertIsDisplayed()
         composeRule.onNodeWithTag("pagespeed.sources").assertIsDisplayed()
         composeRule.onNodeWithText("PARTIAL AUDIT").assertIsDisplayed()
-        composeRule.onNodeWithText("MOBILE LAB").assertIsDisplayed()
+        composeRule.onNodeWithTag("pagespeed.metrics.pagespeed.mobile.").assertIsDisplayed()
         composeRule.onNodeWithText("Showing a saved audit older than 30 minutes.", substring = true)
             .assertIsDisplayed()
     }

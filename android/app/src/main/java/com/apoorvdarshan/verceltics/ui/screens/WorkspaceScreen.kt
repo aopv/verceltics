@@ -62,11 +62,10 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
 import com.apoorvdarshan.verceltics.ui.components.ThemedModalBottomSheet
 
 /**
- * Native Android counterpart to the disconnected SwiftUI workspace roots.
+ * Native Android counterpart to the SwiftUI workspace roots.
  *
- * Connection state stays outside this view. That lets the app shell replace
- * this empty root with the appropriate native dashboard without coupling the
- * catalog UI to provider storage or network code.
+ * Connection state stays outside this view. The app shell can supply truthful connected content
+ * without coupling the catalog UI to provider storage or network code.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,6 +75,7 @@ fun WorkspaceScreen(
     onAccountAction: () -> Unit,
     modifier: Modifier = Modifier,
     persistenceError: String? = null,
+    connectedContent: (@Composable () -> Unit)? = null,
 ) {
     var showsConnectionCatalog by rememberSaveable(workspace.id) { mutableStateOf(false) }
     var selectedCategoryId by rememberSaveable(workspace.id) { mutableStateOf(workspace.id) }
@@ -99,9 +99,19 @@ fun WorkspaceScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .testTag("workspace.${workspace.id}.empty"),
+                .testTag(
+                    if (connectedContent == null) {
+                        "workspace.${workspace.id}.empty"
+                    } else {
+                        "workspace.${workspace.id}.connected"
+                    },
+                ),
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = if (connectedContent == null) {
+                Arrangement.Center
+            } else {
+                Arrangement.spacedBy(16.dp)
+            },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (persistenceError != null) {
@@ -117,17 +127,41 @@ fun WorkspaceScreen(
                 }
             }
 
-            item(key = "empty-state") {
-                WorkspaceEmptyState(
-                    workspace = workspace,
-                    onConnect = {
-                        selectedCategoryId = workspace.id
-                        showsConnectionCatalog = true
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 560.dp),
-                )
+            if (connectedContent == null) {
+                item(key = "empty-state") {
+                    WorkspaceEmptyState(
+                        workspace = workspace,
+                        onConnect = {
+                            selectedCategoryId = workspace.id
+                            showsConnectionCatalog = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 560.dp),
+                    )
+                }
+            } else {
+                item(key = "connected-content") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 560.dp),
+                    ) {
+                        connectedContent()
+                    }
+                }
+                item(key = "additional-connection") {
+                    WorkspaceAdditionalConnectionState(
+                        workspace = workspace,
+                        onConnect = {
+                            selectedCategoryId = workspace.id
+                            showsConnectionCatalog = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 560.dp),
+                    )
+                }
             }
         }
     }
@@ -145,6 +179,61 @@ fun WorkspaceScreen(
                     onConnectProvider(provider)
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceAdditionalConnectionState(
+    workspace: Workspace,
+    onConnect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val copy = workspaceAdditionalConnectionCopy(workspace)
+    val haptic = LocalHapticFeedback.current
+    Column(
+        modifier = modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Text(
+            text = copy.title,
+            modifier = Modifier.semantics { heading() },
+            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = copy.message,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+        )
+        Surface(
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onConnect()
+            },
+            modifier = Modifier
+                .heightIn(min = 46.dp)
+                .testTag("workspace.${workspace.id}.connect")
+                .semantics { role = Role.Button },
+            shape = RoundedCornerShape(5.dp),
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+            tonalElevation = 0.dp,
+        ) {
+            Box(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = copy.actionTitle,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
@@ -596,6 +685,25 @@ private data class WorkspaceEmptyCopy(
     val message: String,
     val actionTitle: String,
 )
+
+private fun workspaceAdditionalConnectionCopy(workspace: Workspace): WorkspaceEmptyCopy =
+    when (workspace) {
+        Workspace.HOSTING -> WorkspaceEmptyCopy(
+            title = "Add another hosting account",
+            message = "Keep each provider in its own focused dashboard.",
+            actionTitle = "Connect another",
+        )
+        Workspace.REGISTRARS -> WorkspaceEmptyCopy(
+            title = "Add another registrar",
+            message = "Connect another registrar without replacing your saved account.",
+            actionTitle = "Connect another",
+        )
+        Workspace.SITES -> WorkspaceEmptyCopy(
+            title = "Add another site service",
+            message = "Connect search, analytics, uptime, or another performance provider.",
+            actionTitle = "Connect another",
+        )
+    }
 
 private fun workspaceEmptyCopy(workspace: Workspace): WorkspaceEmptyCopy = when (workspace) {
     Workspace.HOSTING -> WorkspaceEmptyCopy(

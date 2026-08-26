@@ -44,11 +44,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,31 +67,34 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.domain.AuthenticationModeMetadata
 import com.apoorvdarshan.verceltics.domain.CredentialField
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
-import com.apoorvdarshan.verceltics.ui.VercelDashboardUi
+import com.apoorvdarshan.verceltics.ui.VercelAccountUi
+import com.apoorvdarshan.verceltics.ui.VercelConnectionStatus
+import com.apoorvdarshan.verceltics.ui.VercelConnectionUiState
+import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelProjectUi
-import com.apoorvdarshan.verceltics.ui.VercelUiGateway
 import com.apoorvdarshan.verceltics.ui.components.LabelChip
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.SectionHeading
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
+import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
 import com.apoorvdarshan.verceltics.ui.components.contrastingContentColor
-import com.apoorvdarshan.verceltics.ui.theme.VercelticsColors
 import java.text.DateFormat
 import java.util.Date
-import kotlinx.coroutines.launch
 
 @Composable
 fun ProviderDetailScreen(
     provider: IntegrationProvider,
-    vercelGateway: VercelUiGateway,
+    vercelConnectionViewModel: VercelConnectionViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (provider.id == "vercel") ProtectCredentialWindow()
     LazyColumn(
         modifier = modifier.testTag("providerDetail.${provider.id}"),
         contentPadding = PaddingValues(start = 18.dp, top = 14.dp, end = 18.dp, bottom = 28.dp),
@@ -107,7 +108,9 @@ fun ProviderDetailScreen(
         }
         if (provider.id == "vercel") {
             item(key = "vercel") {
-                VercelConnectionPanel(gateway = vercelGateway)
+                VercelConnectionPanel(
+                    vercelConnectionViewModel = vercelConnectionViewModel,
+                )
             }
         } else {
             item(key = "placeholder") {
@@ -136,21 +139,26 @@ private fun DetailHeader(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        OutlinedButton(
+        ThemedGlassControl(
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onBack()
             },
             modifier = Modifier
+                .width(68.dp)
                 .heightIn(min = 48.dp)
                 .testTag("providerDetail.back"),
-            shape = RoundedCornerShape(5.dp),
-            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
-            contentPadding = PaddingValues(horizontal = 12.dp),
         ) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
-            Spacer(Modifier.width(7.dp))
-            Text("BACK", style = MaterialTheme.typography.labelLarge)
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
@@ -194,7 +202,6 @@ private fun ProviderHero(provider: IntegrationProvider) {
             ) {
                 ProviderMark(
                     provider = provider,
-                    icon = providerIcon(provider),
                     size = 68.dp,
                 )
                 LabelChip(
@@ -315,34 +322,17 @@ private fun AuthenticationCard(mode: AuthenticationModeMetadata) {
     }
 }
 
-private data class VercelPanelState(
-    val loading: Boolean = true,
-    val dashboard: VercelDashboardUi? = null,
-    val error: String? = null,
-)
-
 @Composable
-private fun VercelConnectionPanel(gateway: VercelUiGateway) {
-    ProtectCredentialWindow()
-    var state by remember(gateway) { mutableStateOf(VercelPanelState()) }
+private fun VercelConnectionPanel(
+    vercelConnectionViewModel: VercelConnectionViewModel,
+) {
+    val state by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     // Credentials must never be serialized into Android saved instance state.
     var token by remember { mutableStateOf("") }
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
     var showDisconnectConfirmation by rememberSaveable { mutableStateOf(false) }
     var projectQuery by rememberSaveable { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
-
-    fun messageOf(throwable: Throwable): String =
-        throwable.message?.takeIf(String::isNotBlank) ?: "The request could not be completed."
-
-    LaunchedEffect(gateway) {
-        state = VercelPanelState(loading = true)
-        gateway.restore().fold(
-            onSuccess = { state = VercelPanelState(loading = false, dashboard = it) },
-            onFailure = { state = VercelPanelState(loading = false, error = messageOf(it)) },
-        )
-    }
 
     if (showDisconnectConfirmation) {
         AlertDialog(
@@ -358,15 +348,7 @@ private fun VercelConnectionPanel(gateway: VercelUiGateway) {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                         showDisconnectConfirmation = false
                         projectQuery = ""
-                        state = state.copy(loading = true, error = null)
-                        scope.launch {
-                            gateway.disconnect().fold(
-                                onSuccess = { state = VercelPanelState(loading = false) },
-                                onFailure = {
-                                    state = state.copy(loading = false, error = messageOf(it))
-                                },
-                            )
-                        }
+                        vercelConnectionViewModel.disconnect()
                     },
                 ) { Text("DISCONNECT") }
             },
@@ -386,28 +368,27 @@ private fun VercelConnectionPanel(gateway: VercelUiGateway) {
     ) {
         Column(Modifier.padding(18.dp)) {
             when {
-                state.dashboard != null -> ConnectedVercelContent(
+                state.status == VercelConnectionStatus.CONNECTED && state.dashboard != null ->
+                    ConnectedVercelContent(
                     state = state,
                     projectQuery = projectQuery,
                     onProjectQueryChange = { projectQuery = it },
                     onRefresh = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        state = state.copy(loading = true, error = null)
-                        scope.launch {
-                            gateway.refresh().fold(
-                                onSuccess = {
-                                    state = VercelPanelState(loading = false, dashboard = it)
-                                },
-                                onFailure = {
-                                    state = state.copy(loading = false, error = messageOf(it))
-                                },
-                            )
-                        }
+                        vercelConnectionViewModel.refresh()
                     },
                     onDisconnect = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                         showDisconnectConfirmation = true
                     },
+                )
+
+                state.status == VercelConnectionStatus.SAVED_UNAVAILABLE ->
+                    SavedVercelUnavailableContent(
+                    account = state.savedAccount,
+                    loading = state.isBusy,
+                    onRetry = vercelConnectionViewModel::refresh,
+                    onDisconnect = { showDisconnectConfirmation = true },
                 )
 
                 else -> {
@@ -438,7 +419,7 @@ private fun VercelConnectionPanel(gateway: VercelUiGateway) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("vercel.token"),
-                        enabled = !state.loading,
+                        enabled = !state.isBusy,
                         singleLine = true,
                         label = { Text("Personal access token") },
                         visualTransformation = if (tokenVisible) {
@@ -474,24 +455,14 @@ private fun VercelConnectionPanel(gateway: VercelUiGateway) {
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             if (token.isBlank()) {
-                                state = state.copy(error = "Enter a Vercel personal access token.")
+                                vercelConnectionViewModel.connect(token)
                             } else {
                                 val pendingToken = token.trim()
-                                state = state.copy(loading = true, error = null)
-                                scope.launch {
-                                    gateway.connect(pendingToken).fold(
-                                        onSuccess = {
-                                            token = ""
-                                            state = VercelPanelState(loading = false, dashboard = it)
-                                        },
-                                        onFailure = {
-                                            state = state.copy(loading = false, error = messageOf(it))
-                                        },
-                                    )
-                                }
+                                token = ""
+                                vercelConnectionViewModel.connect(pendingToken)
                             }
                         },
-                        enabled = !state.loading,
+                        enabled = !state.isBusy,
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 50.dp)
@@ -502,7 +473,7 @@ private fun VercelConnectionPanel(gateway: VercelUiGateway) {
                             contentColor = MaterialTheme.colorScheme.onPrimary,
                         ),
                     ) {
-                        if (state.loading) {
+                        if (state.isBusy) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
@@ -510,7 +481,7 @@ private fun VercelConnectionPanel(gateway: VercelUiGateway) {
                             )
                             Spacer(Modifier.width(9.dp))
                         }
-                        Text(if (state.loading) "CHECKING TOKEN" else "CONNECT SECURELY")
+                        Text(if (state.isBusy) "CHECKING TOKEN" else "CONNECT SECURELY")
                     }
                 }
             }
@@ -524,8 +495,44 @@ private fun VercelConnectionPanel(gateway: VercelUiGateway) {
 }
 
 @Composable
+private fun SavedVercelUnavailableContent(
+    account: VercelAccountUi?,
+    loading: Boolean,
+    onRetry: () -> Unit,
+    onDisconnect: () -> Unit,
+) {
+    StatusPill(text = "Saved securely", color = MaterialTheme.colorScheme.tertiary)
+    Spacer(Modifier.height(10.dp))
+    Text(
+        account?.displayName ?: "Saved Vercel account",
+        style = MaterialTheme.typography.headlineMedium,
+    )
+    account?.email?.let {
+        Text(
+            it,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "The encrypted account remains on this device. Its live dashboard could not be loaded, so connecting another token is disabled.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(enabled = !loading, onClick = onRetry) {
+            Text(if (loading) "Retrying…" else "Retry dashboard")
+        }
+        TextButton(enabled = !loading, onClick = onDisconnect) {
+            Text("Disconnect")
+        }
+    }
+}
+
+@Composable
 private fun ConnectedVercelContent(
-    state: VercelPanelState,
+    state: VercelConnectionUiState,
     projectQuery: String,
     onProjectQueryChange: (String) -> Unit,
     onRefresh: () -> Unit,
@@ -549,7 +556,7 @@ private fun ConnectedVercelContent(
         verticalAlignment = Alignment.Top,
     ) {
         Column(Modifier.weight(1f)) {
-            StatusPill(text = "Connected", color = VercelticsColors.success)
+            StatusPill(text = "Connected", color = MaterialTheme.colorScheme.tertiary)
             Spacer(Modifier.height(10.dp))
             Text(
                 text = dashboard.account.displayName,
@@ -569,14 +576,14 @@ private fun ConnectedVercelContent(
         }
         IconButton(
             onClick = onRefresh,
-            enabled = !state.loading,
+            enabled = !state.isBusy,
             modifier = Modifier.testTag("vercel.refresh"),
         ) {
             Icon(Icons.Rounded.Refresh, contentDescription = "Refresh Vercel projects")
         }
     }
 
-    if (state.loading) {
+    if (state.isBusy) {
         Spacer(Modifier.height(12.dp))
         LinearProgressIndicator(Modifier.fillMaxWidth())
     }
@@ -624,7 +631,7 @@ private fun ConnectedVercelContent(
     Spacer(Modifier.height(14.dp))
     OutlinedButton(
         onClick = onDisconnect,
-        enabled = !state.loading,
+        enabled = !state.isBusy,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("vercel.disconnect"),
@@ -647,7 +654,7 @@ private fun VercelProjectRow(project: VercelProjectUi) {
         Icon(
             Icons.Rounded.CheckCircle,
             contentDescription = null,
-            tint = VercelticsColors.success,
+            tint = MaterialTheme.colorScheme.tertiary,
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {

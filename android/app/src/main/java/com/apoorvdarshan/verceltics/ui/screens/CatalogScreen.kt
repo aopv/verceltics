@@ -263,7 +263,7 @@ fun ProviderCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ProviderMark(provider = provider, icon = providerIcon(provider))
+            ProviderMark(provider = provider)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(

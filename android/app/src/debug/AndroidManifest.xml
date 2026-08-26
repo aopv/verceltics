@@ -3,6 +3,6 @@
     <application>
         <activity
             android:name=".VercelticsTestActivity"
-            android:exported="false" />
+            android:exported="true" />
     </application>
 </manifest>

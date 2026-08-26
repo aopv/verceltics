@@ -1,0 +1,853 @@
+package com.apoorvdarshan.verceltics.ui.screens
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AddCircle
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
+import com.apoorvdarshan.verceltics.domain.IntegrationProvider
+import com.apoorvdarshan.verceltics.domain.Workspace
+import com.apoorvdarshan.verceltics.ui.VercelAccountUi
+import com.apoorvdarshan.verceltics.ui.VercelConnectionStatus
+import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
+import com.apoorvdarshan.verceltics.ui.VercelDashboardUi
+import com.apoorvdarshan.verceltics.ui.VercelProjectUi
+import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
+import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
+import com.apoorvdarshan.verceltics.ui.components.ProviderLogo
+import com.apoorvdarshan.verceltics.ui.components.StatusPill
+import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
+import java.text.DateFormat
+import java.util.Date
+
+/**
+ * Native Hosting root for the first connected Android provider slice.
+ *
+ * The screen restores the existing encrypted Vercel account without moving or rewriting it. When
+ * no account exists it delegates to the same disconnected workspace composition used by iOS.
+ */
+@Composable
+fun VercelWorkspaceScreen(
+    vercelConnectionViewModel: VercelConnectionViewModel,
+    searchRequestId: Int,
+    refreshRequestId: Int,
+    onConnectProvider: (IntegrationProvider) -> Unit,
+    onSearchAvailabilityChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
+    var selectedProjectId by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastHandledRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(refreshRequestId) {
+        if (refreshRequestId > 0 && refreshRequestId != lastHandledRefreshRequestId) {
+            lastHandledRefreshRequestId = refreshRequestId
+            vercelConnectionViewModel.refresh()
+        }
+    }
+
+    LaunchedEffect(state.isSearchAvailable) {
+        onSearchAvailabilityChanged(state.isSearchAvailable)
+    }
+
+    LaunchedEffect(searchRequestId, state.isSearchAvailable) {
+        if (
+            state.isSearchAvailable &&
+            searchRequestId > 0 &&
+            searchRequestId != lastHandledSearchRequestId
+        ) {
+            lastHandledSearchRequestId = searchRequestId
+            withFrameNanos { }
+            if (selectedProjectId != null) {
+                selectedProjectId = null
+                withFrameNanos { }
+            }
+            searchFocusRequester.requestFocus()
+            withFrameNanos { }
+            keyboard?.show()
+        }
+    }
+
+    LaunchedEffect(state.dashboard?.projects) {
+        val projectId = selectedProjectId ?: return@LaunchedEffect
+        if (state.dashboard?.projects?.none { it.id == projectId } != false) {
+            selectedProjectId = null
+        }
+    }
+
+    val selectedProject = selectedProjectId?.let { projectId ->
+        state.dashboard?.projects?.firstOrNull { it.id == projectId }
+    }
+
+    BackHandler(enabled = selectedProject != null) {
+        selectedProjectId = null
+    }
+
+    when {
+        selectedProject != null -> VercelProjectDetailScreen(
+            project = selectedProject,
+            account = requireNotNull(state.dashboard).account,
+            onBack = { selectedProjectId = null },
+            modifier = modifier,
+        )
+
+        state.status == VercelConnectionStatus.RESTORING -> HostingLoadingScreen(modifier)
+        state.status == VercelConnectionStatus.SAVED_UNAVAILABLE -> SavedVercelUnavailableWorkspace(
+            account = state.savedAccount,
+            error = state.error ?: "The saved Vercel account could not be loaded.",
+            isRefreshing = state.isBusy,
+            onRetry = vercelConnectionViewModel::refresh,
+            onDisconnect = {
+                selectedProjectId = null
+                vercelConnectionViewModel.disconnect()
+            },
+            modifier = modifier,
+        )
+
+        state.status == VercelConnectionStatus.DISCONNECTED -> WorkspaceScreen(
+            workspace = Workspace.HOSTING,
+            onConnectProvider = onConnectProvider,
+            onAccountAction = {},
+            persistenceError = state.error,
+            modifier = modifier,
+        )
+
+        else -> ConnectedVercelWorkspace(
+            dashboard = requireNotNull(state.dashboard),
+            isRefreshing = state.isBusy,
+            error = state.error,
+            searchFocusRequester = searchFocusRequester,
+            onRefresh = {
+                if (!state.isBusy) vercelConnectionViewModel.refresh()
+            },
+            onManageConnection = {
+                IntegrationCatalog.provider("vercel")?.let(onConnectProvider)
+            },
+            onDisconnect = {
+                selectedProjectId = null
+                vercelConnectionViewModel.disconnect()
+            },
+            onProjectSelected = { selectedProjectId = it.id },
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun SavedVercelUnavailableWorkspace(
+    account: VercelAccountUi?,
+    error: String,
+    isRefreshing: Boolean,
+    onRetry: () -> Unit,
+    onDisconnect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showDisconnectConfirmation by rememberSaveable { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    if (showDisconnectConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectConfirmation = false },
+            title = { Text("Disconnect saved Vercel account?") },
+            text = { Text("The encrypted token will be removed from this Android device.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showDisconnectConfirmation = false
+                        onDisconnect()
+                    },
+                ) { Text("Disconnect") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectConfirmation = false }) {
+                    Text("Keep account")
+                }
+            },
+        )
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(18.dp)
+            .testTag("workspace.hosting.savedUnavailable"),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        OffsetPanel(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                StatusPill(text = "Saved securely", color = MaterialTheme.colorScheme.tertiary)
+                Text(
+                    account?.displayName ?: "Saved Vercel account",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Text(
+                    "The encrypted account is still on this device, but its live dashboard is unavailable. Reconnecting will not overwrite it.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HostingFeedbackBanner(error)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextButton(enabled = !isRefreshing, onClick = onRetry) {
+                        Text(if (isRefreshing) "Retrying…" else "Retry")
+                    }
+                    TextButton(
+                        enabled = !isRefreshing,
+                        onClick = { showDisconnectConfirmation = true },
+                    ) { Text("Disconnect") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectedVercelWorkspace(
+    dashboard: VercelDashboardUi,
+    isRefreshing: Boolean,
+    error: String?,
+    searchFocusRequester: FocusRequester,
+    onRefresh: () -> Unit,
+    onManageConnection: () -> Unit,
+    onDisconnect: () -> Unit,
+    onProjectSelected: (VercelProjectUi) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    var accountMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var showDisconnectConfirmation by rememberSaveable { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val visibleProjects = remember(dashboard.projects, query) {
+        val normalized = query.trim()
+        if (normalized.isEmpty()) {
+            dashboard.projects
+        } else {
+            dashboard.projects.filter { project ->
+                project.name.contains(normalized, ignoreCase = true) ||
+                    project.framework?.contains(normalized, ignoreCase = true) == true
+            }
+        }
+    }
+
+    if (showDisconnectConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectConfirmation = false },
+            shape = MaterialTheme.shapes.medium,
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
+            title = { Text("Disconnect Vercel?") },
+            text = { Text("The saved token will be removed from this Android device.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        showDisconnectConfirmation = false
+                        query = ""
+                        onDisconnect()
+                    },
+                ) { Text("Disconnect") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectConfirmation = false }) {
+                    Text("Keep account")
+                }
+            },
+        )
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("workspace.hosting.connected"),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 70.dp)
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box {
+                ThemedGlassControl(
+                    modifier = Modifier
+                        .width(68.dp)
+                        .height(50.dp),
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        accountMenuExpanded = true
+                    },
+                    testTag = "workspace.hosting.account",
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics {
+                                contentDescription = "Switch connected hosting account"
+                                role = Role.Button
+                            },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IntegrationCatalog.provider("vercel")?.let { provider ->
+                            Surface(
+                                modifier = Modifier.size(28.dp),
+                                shape = RoundedCornerShape(3.dp),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                border = BorderStroke(1.25.dp, MaterialTheme.colorScheme.primary),
+                                tonalElevation = 0.dp,
+                            ) {
+                                ProviderLogo(
+                                    provider = provider,
+                                    modifier = Modifier.padding(6.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        Icon(
+                            Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = accountMenuExpanded,
+                    onDismissRequest = { accountMenuExpanded = false },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(dashboard.account.displayName, fontWeight = FontWeight.Bold)
+                                dashboard.account.email?.let {
+                                    Text(it, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
+                        onClick = { accountMenuExpanded = false },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Manage connection") },
+                        leadingIcon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
+                        onClick = {
+                            accountMenuExpanded = false
+                            onManageConnection()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Remove current account") },
+                        leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null) },
+                        onClick = {
+                            accountMenuExpanded = false
+                            showDisconnectConfirmation = true
+                        },
+                    )
+                }
+            }
+
+            Text(
+                text = "Hosting",
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+                    .semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                maxLines = 1,
+            )
+
+            ThemedGlassControl(
+                modifier = Modifier.size(50.dp),
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    if (!isRefreshing) onRefresh()
+                },
+                testTag = "workspace.hosting.refresh",
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .semantics {
+                            contentDescription = if (isRefreshing) {
+                                "Refreshing hosting projects"
+                            } else {
+                                "Refresh hosting projects"
+                            }
+                            role = Role.Button
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(25.dp),
+                    )
+                }
+            }
+        }
+
+        ControlSearchField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = "Search Vercel projects",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            testTag = "workspace.hosting.searchField",
+            focusRequester = searchFocusRequester,
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentPadding = PaddingValues(start = 18.dp, top = 2.dp, end = 18.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(key = "account-summary") {
+                OffsetPanel(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 98.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    testTag = "workspace.hosting.summary",
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = dashboard.account.displayName,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            dashboard.account.email?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        StatusPill(
+                            text = "Connected",
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                }
+            }
+
+            if (isRefreshing) {
+                item(key = "refreshing") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(5.dp)
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                }
+            }
+
+            if (error != null) {
+                item(key = "error") {
+                    HostingFeedbackBanner(error)
+                }
+            }
+
+            item(key = "heading") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { heading() },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Projects", style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        "${visibleProjects.size}/${dashboard.projects.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (dashboard.projects.isEmpty()) {
+                item(key = "empty") {
+                    Text(
+                        "No projects were returned for this account.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (visibleProjects.isEmpty()) {
+                item(key = "no-match") {
+                    Text(
+                        "No Vercel project matches “$query”.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                items(visibleProjects, key = VercelProjectUi::id) { project ->
+                    VercelWorkspaceProjectRow(
+                        project = project,
+                        onClick = { onProjectSelected(project) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VercelWorkspaceProjectRow(
+    project: VercelProjectUi,
+    onClick: () -> Unit,
+) {
+    val haptic = LocalHapticFeedback.current
+    OffsetPanel(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 76.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowOffset = 3.dp,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+            onClick()
+        },
+        testTag = "workspace.hosting.project.${project.id}",
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                color = MaterialTheme.colorScheme.onSurface,
+                contentColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(3.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                tonalElevation = 0.dp,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    IntegrationCatalog.provider("vercel")?.let { provider ->
+                        ProviderLogo(
+                            provider = provider,
+                            modifier = Modifier.padding(10.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = project.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = listOfNotNull(
+                        project.framework,
+                        project.updatedAtMillis?.let(::formatProjectDate),
+                    ).joinToString(" · ").ifBlank { "Project ${project.id.take(8)}" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = "›",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VercelProjectDetailScreen(
+    project: VercelProjectUi,
+    account: VercelAccountUi,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptic = LocalHapticFeedback.current
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("workspace.hosting.projectDetail"),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 70.dp)
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ThemedGlassControl(
+                modifier = Modifier.size(50.dp),
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onBack()
+                },
+                testTag = "workspace.hosting.projectDetail.back",
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .semantics {
+                            contentDescription = "Back to Vercel projects"
+                            role = Role.Button
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = null,
+                        modifier = Modifier.size(25.dp),
+                    )
+                }
+            }
+            Text(
+                text = project.name,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp)
+                    .semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentPadding = PaddingValues(start = 18.dp, top = 12.dp, end = 18.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item(key = "identity") {
+                OffsetPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = project.name,
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                        Text(
+                            text = project.framework ?: "Vercel project",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
+                        )
+                        StatusPill(
+                            text = "Connected",
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                }
+            }
+
+            item(key = "overview") {
+                OffsetPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surface,
+                    testTag = "workspace.hosting.projectDetail.overview",
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = "Overview",
+                            modifier = Modifier.semantics { heading() },
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        ProjectDetailValue("Project ID", project.id)
+                        ProjectDetailValue("Framework", project.framework ?: "Not reported")
+                        ProjectDetailValue(
+                            "Last updated",
+                            project.updatedAtMillis?.let(::formatProjectDate) ?: "Not reported",
+                        )
+                        ProjectDetailValue("Account", account.displayName)
+                    }
+                }
+            }
+
+            item(key = "analytics-status") {
+                OffsetPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = "Analytics",
+                            modifier = Modifier.semantics { heading() },
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Text(
+                            text = "The project route is native and ready. Web Analytics is the next screen in the Android migration, so no placeholder metrics are shown.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectDetailValue(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+    }
+}
+
+@Composable
+private fun HostingFeedbackBanner(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Assertive }
+            .background(
+                MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                MaterialTheme.shapes.medium,
+            )
+            .padding(14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text("!", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black)
+        Spacer(Modifier.width(10.dp))
+        Text(message, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun HostingLoadingScreen(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .testTag("workspace.hosting.loading"),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium),
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(98.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium),
+        )
+        repeat(5) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(76.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium),
+            )
+        }
+    }
+}
+
+private fun formatProjectDate(timestamp: Long): String =
+    DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestamp))

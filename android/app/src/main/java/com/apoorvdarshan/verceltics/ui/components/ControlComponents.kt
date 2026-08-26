@@ -3,6 +3,7 @@ package com.apoorvdarshan.verceltics.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -41,6 +43,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -59,7 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
 
-private val PanelShape = RoundedCornerShape(7.dp)
+private val PanelShape = RoundedCornerShape(4.dp)
 
 @Composable
 fun OffsetPanel(
@@ -67,17 +70,25 @@ fun OffsetPanel(
     color: Color = MaterialTheme.colorScheme.surface,
     borderColor: Color = MaterialTheme.colorScheme.outline,
     shadowColor: Color = MaterialTheme.colorScheme.outline,
-    shadowOffset: Dp = 5.dp,
+    shadowOffset: Dp? = null,
     shape: Shape = PanelShape,
     onClick: (() -> Unit)? = null,
     testTag: String? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(modifier = modifier.padding(end = shadowOffset, bottom = shadowOffset)) {
+    val resolvedShadowOffset = shadowOffset ?: if (isSystemInDarkTheme()) 2.dp else 4.dp
+    val borderWidth = if (isSystemInDarkTheme()) 1.dp else 2.dp
+    Box(
+        modifier = modifier.padding(
+            end = resolvedShadowOffset,
+            bottom = resolvedShadowOffset,
+        ),
+        propagateMinConstraints = true,
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(shadowOffset, shadowOffset)
+                .offset(resolvedShadowOffset, resolvedShadowOffset)
                 .clip(shape)
                 .background(shadowColor),
         )
@@ -92,7 +103,7 @@ fun OffsetPanel(
                 color = color,
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
-                border = BorderStroke(2.dp, borderColor),
+                border = BorderStroke(borderWidth, borderColor),
                 content = { Box(Modifier.fillMaxSize(), content = content) },
             )
         } else {
@@ -103,7 +114,7 @@ fun OffsetPanel(
                 color = color,
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
-                border = BorderStroke(2.dp, borderColor),
+                border = BorderStroke(borderWidth, borderColor),
                 interactionSource = remember { MutableInteractionSource() },
                 content = { Box(Modifier.fillMaxSize(), content = content) },
             )
@@ -133,19 +144,19 @@ fun ControlSearchField(
     }
     Surface(
         modifier = modifier
-            .defaultMinSize(minHeight = 58.dp)
+            .defaultMinSize(minHeight = 54.dp)
             .testTag("$testTag.container"),
-        color = colors.surface,
+        color = colors.primary.copy(alpha = 0.08f).compositeOver(colors.surface),
         shape = PanelShape,
         tonalElevation = 0.dp,
-        border = BorderStroke(2.dp, colors.outline),
+        border = BorderStroke(if (isSystemInDarkTheme()) 1.dp else 2.dp, colors.outline),
     ) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 58.dp)
+                .defaultMinSize(minHeight = 54.dp)
                 .testTag(testTag)
                 .then(if (focusRequester == null) Modifier else Modifier.focusRequester(focusRequester))
                 .semantics { contentDescription = placeholder },
@@ -165,7 +176,7 @@ fun ControlSearchField(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .defaultMinSize(minHeight = 58.dp)
+                        .defaultMinSize(minHeight = 54.dp)
                         .padding(start = 16.dp, end = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -192,9 +203,23 @@ fun ControlSearchField(
                                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                 onValueChange("")
                             },
-                            modifier = Modifier.testTag("$testTag.clear"),
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("$testTag.clear"),
                         ) {
-                            Icon(Icons.Rounded.Clear, contentDescription = "Clear search")
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(colors.primary, RoundedCornerShape(3.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Clear,
+                                    contentDescription = "Clear search",
+                                    tint = colors.onPrimary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -216,8 +241,8 @@ fun ProviderMark(
         modifier = modifier.size(size),
         color = accent,
         contentColor = foreground,
-        shape = RoundedCornerShape(6.dp),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        shape = RoundedCornerShape(3.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         tonalElevation = 0.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -226,6 +251,91 @@ fun ProviderMark(
                 contentDescription = null,
                 modifier = Modifier.size(size * 0.5f),
             )
+        }
+    }
+}
+
+/** Provider tile backed by the canonical cross-platform provider artwork. */
+@Composable
+fun ProviderMark(
+    provider: IntegrationProvider,
+    modifier: Modifier = Modifier,
+    size: Dp = 54.dp,
+) {
+    val accent = Color(provider.accentColor)
+    Surface(
+        modifier = modifier.size(size),
+        color = accent.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surface),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(3.dp),
+        border = BorderStroke(1.25.dp, accent),
+        tonalElevation = 0.dp,
+    ) {
+        Box(
+            modifier = Modifier.padding(size * 0.22f),
+            contentAlignment = Alignment.Center,
+        ) {
+            ProviderLogo(
+                provider = provider,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+/**
+ * A compact, branded Material control that echoes the iOS Liquid Glass toolbar treatment.
+ * Android owns the actual surface and touch feedback; Verceltics contributes the tint, outline,
+ * offset depth, and orange status rail.
+ */
+@Composable
+fun ThemedGlassControl(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String? = null,
+    shape: Shape = RoundedCornerShape(18.dp),
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val isDark = isSystemInDarkTheme()
+    val shadowOffset = if (isDark) 2.dp else 3.dp
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(modifier = modifier.padding(end = shadowOffset, bottom = shadowOffset)) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(shadowOffset, shadowOffset)
+                .clip(shape)
+                .background(colors.outline.copy(alpha = if (isDark) 0.50f else 0.82f)),
+        )
+        Surface(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (testTag == null) Modifier else Modifier.testTag(testTag)),
+            shape = shape,
+            color = colors.surface.copy(alpha = if (isDark) 0.86f else 0.90f),
+            contentColor = colors.onSurface,
+            border = BorderStroke(if (isDark) 1.25.dp else 1.5.dp, colors.outline),
+            tonalElevation = 0.dp,
+            shadowElevation = 10.dp,
+            interactionSource = interactionSource,
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(colors.primary.copy(alpha = 0.12f)),
+            ) {
+                content()
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 4.dp)
+                        .width(20.dp)
+                        .height(3.dp)
+                        .background(colors.primary, RoundedCornerShape(50)),
+                )
+            }
         }
     }
 }
@@ -276,13 +386,12 @@ fun StatusPill(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    val textColor = if (color.luminance() > 0.54f) Color.Black else Color.White
     Surface(
         modifier = modifier,
-        color = color,
-        contentColor = textColor,
+        color = color.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surface),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(1.25.dp, color),
         tonalElevation = 0.dp,
     ) {
         Row(
@@ -292,7 +401,7 @@ fun StatusPill(
             Box(
                 Modifier
                     .size(7.dp)
-                    .background(textColor, RoundedCornerShape(50)),
+                    .background(color, RoundedCornerShape(50)),
             )
             Spacer(Modifier.width(7.dp))
             Text(

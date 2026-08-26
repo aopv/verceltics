@@ -30,9 +30,19 @@ class NativeVercelUiGateway private constructor(
         VercelAccountRepository.create(applicationContext)
     }
 
-    override suspend fun restore(): Result<VercelDashboardUi?> = capture {
-        val account = executeAwait(executor) { accountRepository.load() } ?: return@capture null
-        dashboard(account)
+    override suspend fun restore(): Result<VercelRestoreUi> = capture {
+        val account = executeAwait(executor) { accountRepository.load() }
+            ?: return@capture VercelRestoreUi.NoSavedAccount
+        try {
+            VercelRestoreUi.Available(dashboard(account))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            VercelRestoreUi.DashboardUnavailable(
+                account = account.toUi(),
+                error = error,
+            )
+        }
     }
 
     override suspend fun connect(personalToken: String): Result<VercelDashboardUi> = capture {

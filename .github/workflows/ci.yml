@@ -54,35 +54,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.47.1"
-          channel: stable
-          cache: true
-
-      - name: Generate Flutter iOS integration package
-        run: ./scripts/bootstrap_flutter_ios.sh
-
-      - name: Verify generated bridge is committed
-        run: |
-          git diff --exit-code -- \
-            shared_ui/lib/src/bridge/generated/verceltics_bridge.g.dart \
-            ios/verceltics/FlutterBridge/VercelticsBridge.g.swift
-
-      - name: Test shared Flutter UI
-        working-directory: shared_ui
-        run: |
-          flutter analyze
-          flutter test
-
       - name: Test iOS app
         run: |
           set -o pipefail
           xcodebuild test \
-            -hideShellScriptEnvironment \
             -project ios/verceltics.xcodeproj \
             -scheme verceltics \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -derivedDataPath /tmp/verceltics-ci-derived-data \
             CODE_SIGNING_ALLOWED=NO
+
+  android-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-37.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test, lint, and build Android app
+        working-directory: android
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug

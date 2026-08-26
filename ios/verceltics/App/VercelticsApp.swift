@@ -13,10 +13,10 @@ struct VercelticsApp: App {
 
     init() {
 #if DEBUG
-        if SharedUIDebugFixtures.usesIsolatedAccountStores {
+        if AppDebugFixtures.usesIsolatedAccountStores {
             _authManager = State(initialValue: AuthManager(ephemeralAccounts: []))
             _registrarStore = State(initialValue: RegistrarStore(ephemeralAccounts: []))
-            _siteStore = State(initialValue: SharedUIDebugFixtures.makeSiteStore())
+            _siteStore = State(initialValue: AppDebugFixtures.makeSiteStore())
         } else {
             _authManager = State(initialValue: AuthManager())
             _registrarStore = State(initialValue: RegistrarStore())
@@ -62,10 +62,10 @@ struct VercelticsApp: App {
         WindowGroup {
             Group {
 #if DEBUG
-                if SharedUIDebugFixtures.showsRegistrarDomain {
-                    SharedUIDebugFixtures.registrarDomainView
-                } else if SharedUIDebugFixtures.showsMainNavigation {
-                    SharedUIDebugFixtures.mainNavigationView
+                if AppDebugFixtures.showsRegistrarDomain {
+                    AppDebugFixtures.registrarDomainView
+                } else if AppDebugFixtures.showsMainNavigation {
+                    AppDebugFixtures.mainNavigationView
                 } else {
                     appContent
                 }
@@ -83,7 +83,7 @@ struct VercelticsApp: App {
             .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
             .task(id: firstLaunchMigrationState) {
 #if DEBUG
-                guard !SharedUIDebugFixtures.usesIsolatedAccountStores else { return }
+                guard !AppDebugFixtures.usesIsolatedAccountStores else { return }
 #endif
                 guard paywallManager.hasCheckedEntitlements else { return }
                 firstLaunchExperience.migrateIfNeeded(

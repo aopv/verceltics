@@ -4,68 +4,10 @@ struct RegistrarDomainDetailView: View {
     let account: RegistrarAccount
     let domain: RegistrarDomain
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var showsCompleteRegistrarAPI = false
-    @State private var usesSharedUI: Bool
-
-    init(
-        account: RegistrarAccount,
-        domain: RegistrarDomain,
-        usesSharedUI: Bool? = nil
-    ) {
-        self.account = account
-        self.domain = domain
-        _usesSharedUI = State(
-            initialValue: usesSharedUI
-                ?? SharedUIFeatureFlags.registrarDomainDetailEnabled()
-        )
-    }
 
     private var provider: RegistrarProvider { account.provider }
 
     var body: some View {
-        Group {
-            if usesSharedUI {
-                FlutterRegistrarDomainBody(
-                    snapshot: RegistrarDomainBridgeMapper.snapshot(
-                        account: account,
-                        domain: domain
-                    ),
-                    actionHandler: handleSharedUIAction
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(AppTheme.canvas)
-            } else {
-                nativeBody
-            }
-        }
-        .navigationTitle(domain.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(isPresented: $showsCompleteRegistrarAPI) {
-            ProviderFullAPICatalogView(account: account)
-        }
-        .toolbar {
-            AppThemedToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        setUsesSharedUI(!usesSharedUI)
-                    } label: {
-                        Label(
-                            usesSharedUI ? "Use native view" : "Use shared view",
-                            systemImage: usesSharedUI ? "swift" : "rectangle.3.group"
-                        )
-                    }
-                } label: {
-                    AppToolbarActionLabel(
-                        systemImage: "ellipsis",
-                        accent: provider.accentColor
-                    )
-                }
-                .accessibilityLabel("Screen renderer")
-            }
-        }
-    }
-
-    private var nativeBody: some View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
             ScrollView {
@@ -104,6 +46,8 @@ struct RegistrarDomainDetailView: View {
                 .appContentWidth(AppLayout.detailMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
+        .navigationTitle(domain.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var detailColumns: [GridItem] {
@@ -244,23 +188,5 @@ struct RegistrarDomainDetailView: View {
 
     private func booleanText(_ value: Bool?) -> String {
         switch value { case true: "On"; case false: "Off"; case nil: "Not returned" }
-    }
-
-    private func handleSharedUIAction(_ action: RegistrarDomainAction) {
-        switch action {
-        case .openDomain:
-            guard let url = URL(string: "https://\(domain.name)") else { return }
-            UIApplication.shared.open(url)
-        case .openRegistrar:
-            guard let url = provider.dashboardURL else { return }
-            UIApplication.shared.open(url)
-        case .openCompleteRegistrarApi:
-            showsCompleteRegistrarAPI = true
-        }
-    }
-
-    private func setUsesSharedUI(_ isEnabled: Bool) {
-        SharedUIFeatureFlags.setRegistrarDomainDetailEnabled(isEnabled)
-        usesSharedUI = isEnabled
     }
 }

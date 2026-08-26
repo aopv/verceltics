@@ -26,6 +26,8 @@
 
 Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
 
+The shipping iOS app remains fully native SwiftUI. A separate native Android app is being migrated screen by screen with Kotlin and Jetpack Compose; it does not embed Flutter or share a cross-platform UI runtime. See [Native mobile architecture](docs/native-mobile-architecture.md) for the current parity boundary.
+
 ## Screenshots
 
 The README highlights the iPhone experience. Verceltics also has a fully adaptive iPad interface; visit the [website](https://verceltics.com) for the complete iPad gallery.
@@ -93,7 +95,7 @@ Verceltics 3.0 includes 27 separate integrations: 10 hosting platforms, 8 regist
 - **iPad layout** — Sidebar-adaptable navigation, adaptive grids, wider detail surfaces, and full-width charts on regular size class.
 - **Appearance** — System, light, and dark modes.
 - **Guarded operations** — Cross-host redirects are blocked; detected writes, purchases, and destructive requests require confirmation.
-- **Open source** — The complete SwiftUI app and Next.js website are available in this repository.
+- **Open source** — The complete SwiftUI app, native Android migration, and Next.js website are available in this repository.
 
 ## Privacy architecture
 
@@ -139,6 +141,13 @@ All paid options unlock the same Verceltics Pro entitlement. App Store pricing c
 - iOS Keychain for device-only credential storage
 - RevenueCat + StoreKit for subscriptions, lifetime access, optional tips, and restoration
 
+### Android
+
+- Kotlin with Jetpack Compose and Material 3 native interactions
+- Android Keystore-backed credential protection and app-private, backup-excluded storage
+- A native provider catalog covering all 27 integrations
+- The first end-to-end provider slice targets Vercel; the remaining provider APIs and detail screens are migrated independently
+
 ### Web
 
 - Next.js App Router with static export
@@ -150,6 +159,7 @@ All paid options unlock the same Verceltics Pro entitlement. App Store pricing c
 
 ```text
 verceltics/
+├── android/                 # Native Kotlin and Jetpack Compose Android app
 ├── ios/                     # SwiftUI iPhone and iPad app
 ├── web/                     # Next.js website, privacy, and terms
 ├── docs/screenshots/ios/    # Current iPhone screenshots used by this README
@@ -173,6 +183,17 @@ verceltics/
 5. Build and run.
 
 Production App Store entitlements are managed by Apple and RevenueCat. A source build still needs your own provider credentials and any OAuth configuration required by the Google integrations you intend to test.
+
+## Run the Android app
+
+The Android project requires JDK 17 and Android SDK Platform 37.0.
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+Open the `android` directory in Android Studio to run the app on an Android emulator. Android provider parity is intentionally incremental; consult [the migration matrix](docs/native-mobile-architecture.md#screen-by-screen-status) before testing a provider workflow.
 
 ## Run the website
 
@@ -215,6 +236,13 @@ Run repository tests:
 
 ```bash
 ./scripts/test.sh
+```
+
+Run the native Android checks:
+
+```bash
+cd android
+./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
 For purchase testing, use Apple sandbox or TestFlight together with RevenueCat customer history and entitlement tools. The checked-in StoreKit configuration mirrors the monthly, yearly, lifetime, and optional-tip products for local reference.

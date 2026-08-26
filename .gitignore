@@ -32,9 +32,3 @@ yarn-error.log*
 .pnpm-debug.log*
 .vercel
 .wrangler/
-
-# ── Flutter shared UI ──
-shared_ui/.dart_tool/
-shared_ui/.flutter-plugins-dependencies
-shared_ui/build/
-shared_ui/coverage/

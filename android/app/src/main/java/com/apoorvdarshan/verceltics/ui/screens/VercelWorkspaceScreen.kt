@@ -217,6 +217,9 @@ fun VercelWorkspaceScreen(
             onConnectNetlify = {
                 IntegrationCatalog.provider("netlify")?.let(onConnectProvider)
             },
+            onConnectCloudflare = {
+                IntegrationCatalog.provider("cloudflare")?.let(onConnectProvider)
+            },
             modifier = modifier,
         )
     }
@@ -322,6 +325,7 @@ private fun ConnectedVercelWorkspace(
     onProjectSelected: (VercelProjectUi) -> Unit,
     connectedProviderContent: (@Composable () -> Unit)?,
     onConnectNetlify: () -> Unit,
+    onConnectCloudflare: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -565,17 +569,29 @@ private fun ConnectedVercelWorkspace(
                 item(key = "secondary-connected-provider") {
                     content()
                 }
-            } ?: item(key = "connect-netlify") {
-                ThemedActionButton(
-                    text = "CONNECT NETLIFY",
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onConnectNetlify()
-                    },
-                    tone = ThemedActionTone.NEUTRAL,
-                    modifier = Modifier.fillMaxWidth(),
-                    testTag = "workspace.hosting.connectNetlify",
-                )
+            } ?: item(key = "connect-secondary-providers") {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    ThemedActionButton(
+                        text = "CONNECT CLOUDFLARE",
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onConnectCloudflare()
+                        },
+                        tone = ThemedActionTone.NEUTRAL,
+                        modifier = Modifier.fillMaxWidth(),
+                        testTag = "workspace.hosting.connectCloudflare",
+                    )
+                    ThemedActionButton(
+                        text = "CONNECT NETLIFY",
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onConnectNetlify()
+                        },
+                        tone = ThemedActionTone.NEUTRAL,
+                        modifier = Modifier.fillMaxWidth(),
+                        testTag = "workspace.hosting.connectNetlify",
+                    )
+                }
             }
 
             if (isRefreshing) {

@@ -1,0 +1,305 @@
+package com.apoorvdarshan.verceltics.ui.cloudflare
+
+import android.content.Context
+import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAccountInventory
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAccountSummary
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionCommit
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionRepository
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionStore
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareDataSource
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareFetchResult
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflarePagesProject
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareProfile
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareRestoreProblem
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareRestoreResult
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareSnapshot
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareWorkerScript
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareZone
+import com.apoorvdarshan.verceltics.data.network.CancelableCall
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+
+/** Production bridge from the encrypted Cloudflare backend to bounded display-only models. */
+class NativeCloudflareUiGateway internal constructor(
+    private val connectionStore: CloudflareConnectionStore,
+    private val dataSource: CloudflareDataSource,
+    private val networkExecutor: ExecutorService,
+    private val storageExecutor: ExecutorService,
+    private val beforeAcceptValidatedConnection: suspend () -> Unit = {},
+    private val afterAcceptValidatedConnection: suspend () -> Unit = {},
+) : CloudflareUiGateway {
+    override suspend fun restore(): Result<CloudflareRestoreUi> = capture {
+        when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
+            CloudflareRestoreResult.NotConnected -> CloudflareRestoreUi.NotConnected
+            is CloudflareRestoreResult.Restored -> restored.cachedSnapshot?.let { snapshot ->
+                CloudflareRestoreUi.Available(
+                    snapshot.toDashboardUi(
+                        if (restored.cacheIsStale) {
+                            CloudflareCacheState.CACHED_STALE
+                        } else {
+                            CloudflareCacheState.CACHED_FRESH
+                        },
+                    ),
+                )
+            } ?: CloudflareRestoreUi.SavedWithoutInventory(restored.profile.toUi())
+            is CloudflareRestoreResult.Unavailable -> CloudflareRestoreUi.SavedUnavailable(
+                when (restored.problem) {
+                    CloudflareRestoreProblem.SAVED_RECORD_UNREADABLE ->
+                        "The saved Cloudflare connection could not be opened. It was not deleted or replaced."
+                    CloudflareRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
+                        "Android secure storage is unavailable. Unlock the device and try again."
+                },
+            )
+        }
+    }
+
+    override suspend fun connect(apiToken: SecretValue): Result<CloudflareDashboardUi> = capture {
+        val result = dataSource.newDashboardCall(apiToken).executeAwait(networkExecutor)
+        val snapshot = result.snapshotOrThrow()
+        var pendingCommit: CloudflareConnectionCommit? = null
+        try {
+            val commit = persistValidatedConnectionAwait(
+                executor = storageExecutor,
+                connectionStore = connectionStore,
+                token = apiToken,
+                result = result,
+            )
+            pendingCommit = commit
+            beforeAcceptValidatedConnection()
+            withContext(NonCancellable) {
+                executeAwait(storageExecutor) { connectionStore.acceptValidatedConnection(commit) }
+                pendingCommit = null
+                afterAcceptValidatedConnection()
+                snapshot.toDashboardUi(CloudflareCacheState.LIVE)
+            }
+        } catch (error: CancellationException) {
+            withContext(NonCancellable) {
+                pendingCommit?.let { commit ->
+                    executeAwait(storageExecutor) {
+                        connectionStore.rollbackValidatedConnection(commit)
+                    }
+                }
+                executeAwait(storageExecutor) {}
+            }
+            throw error
+        } catch (error: Exception) {
+            withContext(NonCancellable) {
+                pendingCommit?.let { commit ->
+                    executeAwait(storageExecutor) {
+                        connectionStore.rollbackValidatedConnection(commit)
+                    }
+                }
+            }
+            throw error
+        }
+    }
+
+    override suspend fun refresh(preferredAccountId: String?): Result<CloudflareDashboardUi> = capture {
+        val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
+            ?: throw CloudflareUiException("Connect a Cloudflare account first.")
+        val result = dataSource.newDashboardCall(
+            token = saved.account.apiToken,
+            preferredAccountId = preferredAccountId,
+        ).executeAwait(networkExecutor)
+        val snapshot = result.snapshotOrThrow()
+        executeAwait(storageExecutor) { connectionStore.persistRefreshResult(result) }
+        snapshot.toDashboardUi(CloudflareCacheState.LIVE)
+    }
+
+    override suspend fun disconnect(): Result<Unit> = capture {
+        executeAwait(storageExecutor, connectionStore::disconnect)
+    }
+
+    private fun CloudflareFetchResult.snapshotOrThrow(): CloudflareSnapshot = when (this) {
+        is CloudflareFetchResult.Complete -> snapshot
+        is CloudflareFetchResult.Partial -> snapshot
+        is CloudflareFetchResult.Failure -> throw CloudflareUiException(failure.message)
+    }
+
+    internal fun CloudflareSnapshot.toDashboardUi(cacheState: CloudflareCacheState): CloudflareDashboardUi {
+        val visibleAccounts = selectedAwareSlice(
+            values = accounts,
+            selectedId = selectedAccountId,
+            maximum = MAXIMUM_VISIBLE_ACCOUNTS,
+            identity = CloudflareAccountSummary::id,
+        )
+        return CloudflareDashboardUi(
+            profile = profile.toUi(),
+            accounts = visibleAccounts.map(CloudflareAccountSummary::toUi),
+            loadedAccountCount = accounts.size,
+            accountsComplete = accountsComplete,
+            accountsTruncatedForDisplay = accounts.size > visibleAccounts.size,
+            selectedAccountId = selectedAccountId,
+            inventory = selectedAccountInventory?.toUi(),
+            warnings = warnings,
+            fetchedAtMillis = fetchedAtMillis,
+            cacheState = cacheState,
+        )
+    }
+
+    private fun CloudflareAccountInventory.toUi(): CloudflareInventoryUi {
+        val visibleZones = zones.take(MAXIMUM_VISIBLE_RESOURCES)
+        val visiblePages = pagesProjects.take(MAXIMUM_VISIBLE_RESOURCES)
+        val visibleWorkers = workers.take(MAXIMUM_VISIBLE_RESOURCES)
+        return CloudflareInventoryUi(
+            accountId = accountId,
+            zones = visibleZones.map(CloudflareZone::toUi),
+            pagesProjects = visiblePages.map(CloudflarePagesProject::toUi),
+            workers = visibleWorkers.map(CloudflareWorkerScript::toUi),
+            loadedZoneCount = zones.size,
+            loadedPagesProjectCount = pagesProjects.size,
+            loadedWorkerCount = workers.size,
+            zonesComplete = zonesComplete,
+            pagesComplete = pagesComplete,
+            workersComplete = workersComplete,
+            zonesTruncatedForDisplay = zones.size > visibleZones.size,
+            pagesTruncatedForDisplay = pagesProjects.size > visiblePages.size,
+            workersTruncatedForDisplay = workers.size > visibleWorkers.size,
+            warnings = warnings,
+        )
+    }
+
+    companion object {
+        const val MAXIMUM_VISIBLE_ACCOUNTS: Int = 50
+        const val MAXIMUM_VISIBLE_RESOURCES: Int = 250
+
+        fun create(context: Context): NativeCloudflareUiGateway = NativeCloudflareUiGateway(
+            connectionStore = CloudflareConnectionStore(
+                CloudflareConnectionRepository.create(context.applicationContext),
+            ),
+            dataSource = CloudflareDataSource(),
+            networkExecutor = Executors.newFixedThreadPool(4) { runnable ->
+                Thread(runnable, "verceltics-cloudflare").apply { isDaemon = true }
+            },
+            storageExecutor = Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "verceltics-cloudflare-storage").apply { isDaemon = true }
+            },
+        )
+    }
+}
+
+private fun CloudflareProfile.toUi() = CloudflareProfileUi(id, displayName, tokenStatus)
+
+private fun CloudflareAccountSummary.toUi() = CloudflareAccountUi(id, name, type)
+
+private fun CloudflareZone.toUi() = CloudflareZoneUi(
+    id = id,
+    name = name,
+    status = status,
+    type = type,
+    paused = paused,
+    accountName = accountName,
+    planName = planName,
+)
+
+private fun CloudflarePagesProject.toUi() = CloudflarePagesProjectUi(
+    id = id,
+    name = name,
+    subdomain = subdomain,
+    domains = domains,
+    productionBranch = productionBranch,
+    latestDeploymentStatus = latestDeploymentStatus,
+)
+
+private fun CloudflareWorkerScript.toUi() = CloudflareWorkerUi(
+    id = id,
+    modifiedOn = modifiedOn,
+    compatibilityDate = compatibilityDate,
+    handlers = handlers,
+    hasAssets = hasAssets,
+    hasModules = hasModules,
+)
+
+private fun <T> selectedAwareSlice(
+    values: List<T>,
+    selectedId: String?,
+    maximum: Int,
+    identity: (T) -> String,
+): List<T> {
+    val visible = values.take(maximum).toMutableList()
+    val selected = selectedId?.let { id -> values.firstOrNull { identity(it) == id } }
+    if (selected != null && visible.none { identity(it) == selectedId }) {
+        if (visible.isEmpty()) visible += selected else visible[visible.lastIndex] = selected
+    }
+    return visible.distinctBy(identity)
+}
+
+private suspend fun <T> CancelableCall<T>.executeAwait(executor: ExecutorService): T =
+    suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { cancel() }
+        executor.execute {
+            try {
+                val value = execute()
+                if (continuation.isActive) continuation.resume(value)
+            } catch (error: CancellationException) {
+                if (continuation.isActive) continuation.cancel(error)
+            } catch (error: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+        }
+    }
+
+private suspend fun <T> executeAwait(executor: ExecutorService, block: () -> T): T =
+    suspendCancellableCoroutine { continuation ->
+        val future = executor.submit {
+            try {
+                val value = block()
+                if (continuation.isActive) continuation.resume(value)
+            } catch (error: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+        }
+        continuation.invokeOnCancellation { future.cancel(true) }
+    }
+
+private suspend fun persistValidatedConnectionAwait(
+    executor: ExecutorService,
+    connectionStore: CloudflareConnectionStore,
+    token: SecretValue,
+    result: CloudflareFetchResult,
+): CloudflareConnectionCommit = suspendCancellableCoroutine { continuation ->
+    val committed = AtomicReference<CloudflareConnectionCommit?>()
+    val cleanupScheduled = AtomicBoolean(false)
+
+    fun scheduleRollback() {
+        if (!cleanupScheduled.compareAndSet(false, true)) return
+        executor.execute {
+            committed.get()?.let { commit ->
+                runCatching { connectionStore.rollbackValidatedConnection(commit) }
+            }
+        }
+    }
+
+    continuation.invokeOnCancellation { scheduleRollback() }
+    executor.execute {
+        if (!continuation.isActive) return@execute
+        try {
+            val commit = connectionStore.saveValidatedConnection(token, result)
+            committed.set(commit)
+            continuation.resume(commit) { _, _, _ -> scheduleRollback() }
+        } catch (error: Exception) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
+    }
+}
+
+private suspend inline fun <T> capture(crossinline block: suspend () -> T): Result<T> = try {
+    Result.success(block())
+} catch (error: CancellationException) {
+    throw error
+} catch (error: CloudflareUiException) {
+    Result.failure(error)
+} catch (_: SecurityException) {
+    Result.failure(CloudflareUiException("Android secure storage is unavailable."))
+} catch (_: Exception) {
+    Result.failure(CloudflareUiException("Cloudflare could not complete this request."))
+}

@@ -50,6 +50,11 @@ import com.apoorvdarshan.verceltics.ui.components.AppNavigationDock
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
+import com.apoorvdarshan.verceltics.ui.components.ThemedActionButton
+import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
+import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareConnectionCard
+import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareRoute
+import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyConnectionCard
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyRoute
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
@@ -72,6 +77,7 @@ private const val UI_PREFERENCES = "verceltics.ui"
 private const val LAST_PRIMARY_WORKSPACE = "lastPrimaryWorkspace"
 private const val PAGE_SPEED_PROVIDER_ID = "pageSpeed"
 private const val NETLIFY_PROVIDER_ID = "netlify"
+private const val CLOUDFLARE_PROVIDER_ID = "cloudflare"
 
 private enum class MainDestination(
     val id: String,
@@ -114,6 +120,7 @@ fun VercelticsApp(
     vercelConnectionViewModel: VercelConnectionViewModel,
     pageSpeedViewModel: PageSpeedViewModel,
     netlifyViewModel: NetlifyViewModel,
+    cloudflareViewModel: CloudflareViewModel,
     aboutState: AboutScreenState = defaultAboutScreenState(),
     onAboutAction: (AboutScreenAction) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -138,6 +145,7 @@ fun VercelticsApp(
     val connectionState by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     val pageSpeedState by pageSpeedViewModel.uiState.collectAsStateWithLifecycle()
     val netlifyState by netlifyViewModel.uiState.collectAsStateWithLifecycle()
+    val cloudflareState by cloudflareViewModel.uiState.collectAsStateWithLifecycle()
     val destination = MainDestination.fromId(destinationId)
     val provider = providerId?.let(IntegrationCatalog::provider)
     val destinationState = rememberSaveableStateHolder()
@@ -170,16 +178,19 @@ fun VercelticsApp(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         hostingRefreshRequestId += 1
         netlifyViewModel.onForeground()
+        cloudflareViewModel.onForeground()
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         netlifyViewModel.onBackground()
+        cloudflareViewModel.onBackground()
     }
 
     BackHandler(
         enabled = provider != null &&
             provider.id != PAGE_SPEED_PROVIDER_ID &&
-            provider.id != NETLIFY_PROVIDER_ID,
+            provider.id != NETLIFY_PROVIDER_ID &&
+            provider.id != CLOUDFLARE_PROVIDER_ID,
     ) {
         providerId = null
     }
@@ -233,6 +244,11 @@ fun VercelticsApp(
                         onBack = { providerId = null },
                         modifier = Modifier.fillMaxSize(),
                     )
+                    CLOUDFLARE_PROVIDER_ID -> CloudflareRoute(
+                        viewModel = cloudflareViewModel,
+                        onBack = { providerId = null },
+                        modifier = Modifier.fillMaxSize(),
+                    )
                     else -> ProviderDetailScreen(
                         provider = provider,
                         vercelConnectionViewModel = vercelConnectionViewModel,
@@ -249,13 +265,52 @@ fun VercelticsApp(
                             refreshRequestId = hostingRefreshRequestId,
                             onConnectProvider = { providerId = it.id },
                             onSearchAvailabilityChanged = { hostingSearchAvailable = it },
-                            connectedProviderContent = if (netlifyState.isConnected) {
+                            connectedProviderContent = if (
+                                netlifyState.isConnected || cloudflareState.isConnected
+                            ) {
                                 {
-                                    NetlifyConnectionCard(
-                                        state = netlifyState,
-                                        onClick = { providerId = NETLIFY_PROVIDER_ID },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        if (cloudflareState.isConnected) {
+                                            CloudflareConnectionCard(
+                                                state = cloudflareState,
+                                                onClick = { providerId = CLOUDFLARE_PROVIDER_ID },
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                        if (netlifyState.isConnected) {
+                                            NetlifyConnectionCard(
+                                                state = netlifyState,
+                                                onClick = { providerId = NETLIFY_PROVIDER_ID },
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                        if (connectionState.status != VercelConnectionStatus.DISCONNECTED) {
+                                            if (!cloudflareState.isConnected) {
+                                                ThemedActionButton(
+                                                    text = "CONNECT CLOUDFLARE",
+                                                    onClick = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                        providerId = CLOUDFLARE_PROVIDER_ID
+                                                    },
+                                                    tone = ThemedActionTone.NEUTRAL,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    testTag = "workspace.hosting.connectCloudflare",
+                                                )
+                                            }
+                                            if (!netlifyState.isConnected) {
+                                                ThemedActionButton(
+                                                    text = "CONNECT NETLIFY",
+                                                    onClick = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                        providerId = NETLIFY_PROVIDER_ID
+                                                    },
+                                                    tone = ThemedActionTone.NEUTRAL,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    testTag = "workspace.hosting.connectNetlify",
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             } else {
                                 null

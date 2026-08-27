@@ -12,16 +12,20 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.Lifecycle
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import com.apoorvdarshan.verceltics.ui.DebugVercelGatewayController
 import com.apoorvdarshan.verceltics.ui.DebugVercelScenario
+import com.apoorvdarshan.verceltics.ui.cloudflare.DebugCloudflareGatewayController
+import com.apoorvdarshan.verceltics.ui.cloudflare.DebugCloudflareScenario
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyGatewayController
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyScenario
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedGatewayController
@@ -42,6 +46,7 @@ class VercelticsNavigationTest {
             activity.configureGateway(DebugVercelScenario.DISCONNECTED)
             activity.configurePageSpeedGateway(DebugPageSpeedScenario.DISCONNECTED)
             activity.configureNetlifyGateway(DebugNetlifyScenario.DISCONNECTED)
+            activity.configureCloudflareGateway(DebugCloudflareScenario.DISCONNECTED)
         }
         waitForTag("mainNavigation.hosting")
         compose.onNodeWithTag("mainNavigation.hosting").performClick()
@@ -102,6 +107,74 @@ class VercelticsNavigationTest {
         waitForTag("workspace.hosting.savedUnavailable")
         compose.onNodeWithTag("workspace.hosting.netlifyConnection").assertIsDisplayed().performClick()
         waitForTag("netlify.dashboard")
+    }
+
+    @Test
+    fun restoredCloudflareCardOpensDashboardAndResourceDetailSurvivesRecreation() {
+        configureCloudflareGateway(DebugCloudflareScenario.CONNECTED)
+
+        waitForTag("workspace.hosting.cloudflareConnection")
+        compose.onNodeWithTag("workspace.hosting.cloudflareConnection").performClick()
+        waitForTag("cloudflare.dashboard")
+        compose.onNodeWithTag("cloudflare.dashboard")
+            .performScrollToNode(hasTestTag("cloudflare.zone.zone-apoorv"))
+        compose.onNodeWithTag("cloudflare.zone.zone-apoorv").performClick()
+        waitForTag("cloudflare.resourceDetail")
+        val restoreCallsBeforeRecreation = DebugCloudflareGatewayController.restoreCalls
+
+        compose.activityRule.scenario.recreate()
+
+        waitForTag("cloudflare.resourceDetail")
+        assertEquals(restoreCallsBeforeRecreation, DebugCloudflareGatewayController.restoreCalls)
+        compose.activityRule.scenario.onActivity { activity ->
+            check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0)
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        waitForTag("cloudflare.dashboard")
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        waitForTag("workspace.hosting.cloudflareConnection")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+    }
+
+    @Test
+    fun hostingCatalogOpensCloudflareTokenRouteAndBackClearsCredentialProtection() {
+        openCloudflareDetail()
+
+        compose.onNodeWithTag("cloudflare.connectionForm").assertIsDisplayed()
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.activityRule.scenario.onActivity { activity ->
+            check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0)
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+
+        waitForTag("workspace.hosting.empty")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+        compose.activityRule.scenario.onActivity { activity ->
+            check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0)
+        }
+    }
+
+    @Test
+    fun cloudflareConnectMutationSurvivesRecreationWithoutSavingTokenInUi() {
+        configureCloudflareGateway(DebugCloudflareScenario.DISCONNECTED, blockConnect = true)
+        openCloudflareDetail()
+        compose.onNodeWithTag("cloudflare.token").performTextInput("temporary-cloudflare-token")
+        compose.onNodeWithTag("cloudflare.connect").performClick()
+        compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
+            DebugCloudflareGatewayController.isConnectStarted()
+        }
+
+        compose.activityRule.scenario.recreate()
+        waitForTag("cloudflare.screen")
+        compose.activityRule.scenario.onActivity(VercelticsTestActivity::releaseCloudflareConnect)
+
+        waitForTag("cloudflare.dashboard")
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.activityRule.scenario.onActivity { activity ->
+            check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0)
+        }
     }
 
     @Test
@@ -280,6 +353,17 @@ class VercelticsNavigationTest {
     }
 
     @Test
+    fun connectedVercelWorkspaceStillExposesCloudflareProviderRoute() {
+        configureGateway(DebugVercelScenario.CONNECTED)
+        waitForTag("workspace.hosting.connected")
+
+        compose.onNodeWithTag("workspace.hosting.connectCloudflare").performClick()
+
+        waitForTag("cloudflare.connectionForm")
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+    }
+
+    @Test
     fun restoredNetlifyCardAndSavedSiteDetailSurviveActivityRecreation() {
         configureNetlifyGateway(DebugNetlifyScenario.CONNECTED)
 
@@ -433,6 +517,14 @@ class VercelticsNavigationTest {
         waitForTag("netlify.screen")
     }
 
+    private fun openCloudflareDetail() {
+        compose.onNodeWithTag("workspace.hosting.connect").performClick()
+        waitForTag("connection.catalog.hosting")
+        compose.onNodeWithTag("connection.category.hosting").assertIsSelected()
+        compose.onNodeWithTag("provider.cloudflare").performClick()
+        waitForTag("cloudflare.screen")
+    }
+
     private fun configureGateway(
         scenario: DebugVercelScenario,
         blockConnect: Boolean = false,
@@ -457,6 +549,15 @@ class VercelticsNavigationTest {
     ) {
         compose.activityRule.scenario.onActivity { activity ->
             activity.configureNetlifyGateway(scenario, blockConnect)
+        }
+    }
+
+    private fun configureCloudflareGateway(
+        scenario: DebugCloudflareScenario,
+        blockConnect: Boolean = false,
+    ) {
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.configureCloudflareGateway(scenario, blockConnect)
         }
     }
 

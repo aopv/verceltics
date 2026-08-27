@@ -14,6 +14,10 @@ import com.apoorvdarshan.verceltics.ui.DebugVercelScenario
 import com.apoorvdarshan.verceltics.ui.DebugVercelUiGateway
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelticsApp
+import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
+import com.apoorvdarshan.verceltics.ui.cloudflare.DebugCloudflareGatewayController
+import com.apoorvdarshan.verceltics.ui.cloudflare.DebugCloudflareScenario
+import com.apoorvdarshan.verceltics.ui.cloudflare.DebugCloudflareUiGateway
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyGatewayController
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyScenario
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyUiGateway
@@ -24,6 +28,7 @@ import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedUiGateway
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -38,7 +43,10 @@ class VercelticsTestActivity : ComponentActivity() {
     private val netlifyViewModel by viewModels<NetlifyViewModel> {
         NetlifyViewModel.Factory(DebugNetlifyUiGateway())
     }
-    private var ownsNetlifySecureFlag = false
+    private val cloudflareViewModel by viewModels<CloudflareViewModel> {
+        CloudflareViewModel.Factory(DebugCloudflareUiGateway())
+    }
+    private var ownsProviderSecureFlag = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         intent.getStringExtra(EXTRA_VERCEL_SCENARIO)
@@ -47,21 +55,28 @@ class VercelticsTestActivity : ComponentActivity() {
         intent.getStringExtra(EXTRA_NETLIFY_SCENARIO)
             ?.let { runCatching { DebugNetlifyScenario.valueOf(it) }.getOrNull() }
             ?.let { DebugNetlifyGatewayController.configure(it) }
+        intent.getStringExtra(EXTRA_CLOUDFLARE_SCENARIO)
+            ?.let { runCatching { DebugCloudflareScenario.valueOf(it) }.getOrNull() }
+            ?.let { DebugCloudflareGatewayController.configure(it) }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                netlifyViewModel.uiState
-                    .map { it.requiresSecureWindow }
+                combine(
+                    netlifyViewModel.uiState.map { it.requiresSecureWindow },
+                    cloudflareViewModel.uiState.map { it.requiresSecureWindow },
+                ) { netlifyRequired, cloudflareRequired ->
+                    netlifyRequired || cloudflareRequired
+                }
                     .distinctUntilChanged()
                     .collect { required ->
                         val flag = WindowManager.LayoutParams.FLAG_SECURE
                         if (required && window.attributes.flags and flag == 0) {
                             window.addFlags(flag)
-                            ownsNetlifySecureFlag = true
-                        } else if (!required && ownsNetlifySecureFlag) {
+                            ownsProviderSecureFlag = true
+                        } else if (!required && ownsProviderSecureFlag) {
                             window.clearFlags(flag)
-                            ownsNetlifySecureFlag = false
+                            ownsProviderSecureFlag = false
                         }
                     }
             }
@@ -72,6 +87,7 @@ class VercelticsTestActivity : ComponentActivity() {
                     vercelConnectionViewModel = vercelConnectionViewModel,
                     pageSpeedViewModel = pageSpeedViewModel,
                     netlifyViewModel = netlifyViewModel,
+                    cloudflareViewModel = cloudflareViewModel,
                 )
             }
         }
@@ -109,8 +125,21 @@ class VercelticsTestActivity : ComponentActivity() {
         DebugNetlifyGatewayController.releaseConnect()
     }
 
+    fun configureCloudflareGateway(
+        scenario: DebugCloudflareScenario,
+        blockConnect: Boolean = false,
+    ) {
+        DebugCloudflareGatewayController.configure(scenario, blockConnect)
+        cloudflareViewModel.restore()
+    }
+
+    fun releaseCloudflareConnect() {
+        DebugCloudflareGatewayController.releaseConnect()
+    }
+
     companion object {
         const val EXTRA_VERCEL_SCENARIO = "vercelScenario"
         const val EXTRA_NETLIFY_SCENARIO = "netlifyScenario"
+        const val EXTRA_CLOUDFLARE_SCENARIO = "cloudflareScenario"
     }
 }

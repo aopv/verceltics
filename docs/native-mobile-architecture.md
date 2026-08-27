@@ -36,7 +36,7 @@ A catalog entry is not considered provider parity. A provider is complete only a
 | Android Vercel | Implemented | Token connection and validation, protected account persistence, projects, analytics, loading/error/empty states, search, refresh, and details. |
 | Android PageSpeed & CrUX | Implemented | Protected API-key connection, Lighthouse and field-data audits, cached restore, history, loading/error/empty states, refresh, and details. |
 | Android Netlify | Implemented read-only flow | Protected token connection, cached restore, sites, domains, build controls, published deployments, deploy history, build history, cancellation reconciliation, refresh, and details. Mutations remain intentionally excluded. |
-| Android Cloudflare | Backend foundation | Fixed-origin API-token verification plus bounded accounts, zones, Pages, and Workers inventory, encrypted persistence, partial-cache merging, and tests. Compose connection and detail screens remain pending. |
+| Android Cloudflare | Implemented read-only flow | Protected scoped-token connection, cached restore, themed account switching, searchable zones/Pages/Workers inventory, refresh, cancellation reconciliation, and read-only resource details. DNS, analytics, storage, security, advanced API tooling, and mutations remain pending. |
 | Android Google Search Console | Backend foundation | Fixed-origin OAuth/API transport, encrypted credentials, properties, analytics, sitemaps, URL inspection, bounded parsing, partial-cache merging, and tests. Android OAuth configuration and Compose screens remain pending. |
 | Android remaining providers | Catalogued, not yet parity-complete | Provider API clients and detail workflows will be migrated and tested one screen at a time. |
 

@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelticsApp
+import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
@@ -24,6 +25,7 @@ import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -43,7 +45,12 @@ class MainActivity : ComponentActivity() {
     private val netlifyViewModel by viewModels<NetlifyViewModel> {
         NetlifyViewModel.Factory(netlifyGateway)
     }
-    private var ownsNetlifySecureFlag = false
+    private val cloudflareGateway
+        get() = (application as VercelticsApplication).cloudflareGateway
+    private val cloudflareViewModel by viewModels<CloudflareViewModel> {
+        CloudflareViewModel.Factory(cloudflareGateway)
+    }
+    private var ownsProviderSecureFlag = false
     private val aboutController by lazy(LazyThreadSafetyMode.NONE) {
         AboutScreenController(
             appearanceStore = SharedPreferencesAppearancePreferenceStore(this),
@@ -55,7 +62,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        observeNetlifyCredentialProtection()
+        observeProviderCredentialProtection()
         setContent {
             val aboutState = aboutController.state
             val aboutScope = rememberCoroutineScope()
@@ -64,6 +71,7 @@ class MainActivity : ComponentActivity() {
                     vercelConnectionViewModel = vercelConnectionViewModel,
                     pageSpeedViewModel = pageSpeedViewModel,
                     netlifyViewModel = netlifyViewModel,
+                    cloudflareViewModel = cloudflareViewModel,
                     aboutState = aboutState,
                     onAboutAction = { dispatchAboutAction(it, aboutScope) },
                 )
@@ -71,27 +79,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun observeNetlifyCredentialProtection() {
+    private fun observeProviderCredentialProtection() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                netlifyViewModel.uiState
-                    .map { it.requiresSecureWindow }
+                combine(
+                    netlifyViewModel.uiState.map { it.requiresSecureWindow },
+                    cloudflareViewModel.uiState.map { it.requiresSecureWindow },
+                ) { netlifyRequired, cloudflareRequired ->
+                    netlifyRequired || cloudflareRequired
+                }
                     .distinctUntilChanged()
-                    .collect(::setNetlifyCredentialProtection)
+                    .collect(::setProviderCredentialProtection)
             }
         }
     }
 
-    private fun setNetlifyCredentialProtection(required: Boolean) {
+    private fun setProviderCredentialProtection(required: Boolean) {
         val secureFlag = WindowManager.LayoutParams.FLAG_SECURE
         if (required) {
             if (window.attributes.flags and secureFlag == 0) {
                 window.addFlags(secureFlag)
-                ownsNetlifySecureFlag = true
+                ownsProviderSecureFlag = true
             }
-        } else if (ownsNetlifySecureFlag) {
+        } else if (ownsProviderSecureFlag) {
             window.clearFlags(secureFlag)
-            ownsNetlifySecureFlag = false
+            ownsProviderSecureFlag = false
         }
     }
 

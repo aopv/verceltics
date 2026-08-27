@@ -8,7 +8,9 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
@@ -30,6 +33,8 @@ import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyGatewayController
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyScenario
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedGatewayController
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedScenario
+import com.apoorvdarshan.verceltics.ui.searchconsole.DebugSearchConsoleGatewayController
+import com.apoorvdarshan.verceltics.ui.searchconsole.DebugSearchConsoleScenario
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -47,6 +52,7 @@ class VercelticsNavigationTest {
             activity.configurePageSpeedGateway(DebugPageSpeedScenario.DISCONNECTED)
             activity.configureNetlifyGateway(DebugNetlifyScenario.DISCONNECTED)
             activity.configureCloudflareGateway(DebugCloudflareScenario.DISCONNECTED)
+            activity.configureSearchConsoleGateway(DebugSearchConsoleScenario.DISCONNECTED)
         }
         waitForTag("mainNavigation.hosting")
         compose.onNodeWithTag("mainNavigation.hosting").performClick()
@@ -54,12 +60,10 @@ class VercelticsNavigationTest {
     }
 
     @Test
-    fun connectedSearchFallsBackToHostingAndFocusesExactlyOnce() {
+    fun connectedHostingSearchFocusesExactlyOnce() {
         configureGateway(DebugVercelScenario.CONNECTED)
         waitForTag("workspace.hosting.connected")
 
-        compose.onNodeWithTag("mainNavigation.registrars").performClick()
-        compose.onNodeWithTag("workspace.registrars.empty").assertIsDisplayed()
         compose.onNodeWithTag("mainNavigation.search").performClick()
 
         waitForTag("workspace.hosting.searchField")
@@ -97,6 +101,31 @@ class VercelticsNavigationTest {
         waitForTag("workspace.hosting.savedUnavailable")
         compose.onAllNodesWithTag("workspace.hosting.empty").assertCountEquals(0)
         compose.onAllNodesWithTag("workspace.hosting.connect").assertCountEquals(0)
+    }
+
+    @Test
+    fun offlineSavedAccountExplainsWhyProjectSearchIsUnavailable() {
+        configureGateway(DebugVercelScenario.OFFLINE_SAVED)
+        waitForTag("workspace.hosting.savedUnavailable")
+
+        compose.onNodeWithTag("mainNavigation.search").performClick()
+
+        compose.onNodeWithText(
+            "Project search is unavailable while the saved Vercel dashboard is offline. Retry the connection first.",
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun disconnectedCatalogSearchDoesNotReplayAfterVercelConnects() {
+        compose.onNodeWithTag("mainNavigation.search").performClick()
+        waitForTag("connection.catalog.hosting")
+        compose.onNodeWithTag("connection.catalog.search").assertIsFocused()
+
+        configureGateway(DebugVercelScenario.CONNECTED)
+
+        waitForTag("workspace.hosting.connected")
+        compose.onNodeWithTag("workspace.hosting.searchField")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Focused, false))
     }
 
     @Test
@@ -139,11 +168,45 @@ class VercelticsNavigationTest {
     }
 
     @Test
+    fun connectedCloudflareKeepsDockAndBottomSearchFocusesInventoryExactlyOnce() {
+        configureCloudflareGateway(DebugCloudflareScenario.CONNECTED)
+
+        waitForTag("workspace.hosting.cloudflareConnection")
+        compose.onNodeWithTag("workspace.hosting.cloudflareConnection").performClick()
+        waitForTag("cloudflare.dashboard")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.dashboard")
+            .performScrollToNode(hasTestTag("cloudflare.zone.zone-apoorv"))
+        compose.onNodeWithTag("cloudflare.zone.zone-apoorv").performClick()
+        waitForTag("cloudflare.resourceDetail")
+        compose.onNodeWithTag("mainNavigation.search").performClick()
+
+        waitForTag("cloudflare.dashboard")
+        compose.onNodeWithTag("cloudflare.search").assertIsFocused()
+
+        compose.activityRule.scenario.recreate()
+
+        waitForTag("cloudflare.dashboard")
+        compose.onNodeWithTag("cloudflare.search")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Focused, false))
+
+        compose.onNodeWithTag("cloudflare.dashboard")
+            .performScrollToNode(hasTestTag("cloudflare.zone.zone-apoorv"))
+        compose.onNodeWithTag("cloudflare.zone.zone-apoorv").performClick()
+        waitForTag("cloudflare.resourceDetail")
+        compose.onNodeWithTag("mainNavigation.hosting").performClick()
+        waitForTag("workspace.hosting.cloudflareConnection")
+        compose.onNodeWithTag("workspace.hosting.cloudflareConnection").performClick()
+
+        waitForTag("cloudflare.resourceDetail")
+    }
+
+    @Test
     fun hostingCatalogOpensCloudflareTokenRouteAndBackClearsCredentialProtection() {
         openCloudflareDetail()
 
         compose.onNodeWithTag("cloudflare.connectionForm").assertIsDisplayed()
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         compose.activityRule.scenario.onActivity { activity ->
             check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0)
             activity.onBackPressedDispatcher.onBackPressed()
@@ -154,6 +217,17 @@ class VercelticsNavigationTest {
         compose.activityRule.scenario.onActivity { activity ->
             check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0)
         }
+    }
+
+    @Test
+    fun persistentDockSwitchesDirectlyFromProviderRouteToAnotherWorkspace() {
+        openCloudflareDetail()
+
+        compose.onNodeWithTag("mainNavigation.sites").performClick()
+
+        waitForTag("workspace.sites.empty")
+        compose.onNodeWithTag("mainNavigation.sites").assertIsSelected()
+        compose.onAllNodesWithTag("cloudflare.screen").assertCountEquals(0)
     }
 
     @Test
@@ -171,7 +245,7 @@ class VercelticsNavigationTest {
         compose.activityRule.scenario.onActivity(VercelticsTestActivity::releaseCloudflareConnect)
 
         waitForTag("cloudflare.dashboard")
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         compose.activityRule.scenario.onActivity { activity ->
             check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0)
         }
@@ -236,10 +310,17 @@ class VercelticsNavigationTest {
         compose.onNodeWithTag("mainNavigation.search").performClick()
 
         compose.onNodeWithTag("workspace.sites.empty").assertIsDisplayed()
+        waitForTag("connection.catalog.sites")
+        compose.onNodeWithTag("connection.catalog.search").assertIsFocused()
         compose.onNodeWithTag("mainNavigation.sites").assertIsSelected()
         compose.onNodeWithTag("mainNavigation.about").assertIsNotSelected()
         compose.onNodeWithTag("mainNavigation.search").assert(noSelectedState)
         compose.onAllNodesWithTag("globalSearch").assertCountEquals(0)
+
+        compose.activityRule.scenario.recreate()
+        waitForTag("connection.catalog.sites")
+        compose.onNodeWithTag("connection.catalog.search")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Focused, false))
     }
 
     @Test
@@ -247,7 +328,7 @@ class VercelticsNavigationTest {
         openVercelDetail()
 
         compose.onNodeWithTag("providerDetail.vercel").assertIsDisplayed()
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         compose.activityRule.scenario.onActivity { activity ->
             check(
                 activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
@@ -273,7 +354,7 @@ class VercelticsNavigationTest {
         openPageSpeedDetail()
 
         compose.onNodeWithTag("pagespeed.connectionForm").assertIsDisplayed()
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         compose.activityRule.scenario.onActivity { activity ->
             check(
                 activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
@@ -312,8 +393,121 @@ class VercelticsNavigationTest {
         compose.activityRule.scenario.recreate()
 
         waitForTag("pagespeed.dashboard")
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         assertEquals(restoreCallsBeforeRecreation, DebugPageSpeedGatewayController.restoreCalls)
+    }
+
+    @Test
+    fun sitesCatalogDistinguishesConnectedAndPlannedProviders() {
+        configureSearchConsoleGateway(DebugSearchConsoleScenario.CONNECTED)
+        compose.onNodeWithTag("mainNavigation.sites").performClick()
+
+        waitForTag("workspace.sites.searchConsoleConnection")
+        compose.onNodeWithTag("workspace.sites.connect").performClick()
+        waitForTag("connection.catalog.sites")
+
+        compose.onNodeWithTag("provider.googleSearchConsole")
+            .assertIsEnabled()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "Connected",
+                ),
+            )
+        compose.onNodeWithText("Open Google Search Console").assertIsDisplayed()
+        // The provider row is clickable and therefore merges its child semantics. Inspect the
+        // badge in the unmerged tree so this verifies the rendered badge rather than the row's
+        // combined accessibility node.
+        compose.onNodeWithTag(
+            "provider.googleSearchConsole.connected",
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+        compose.onNodeWithTag("provider.googleAnalytics")
+            .assertIsNotEnabled()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.ContentDescription,
+                    listOf("Google Analytics. Planned integration"),
+                ),
+            )
+
+        compose.onNodeWithTag("provider.googleSearchConsole").performClick()
+        waitForTag("searchConsole.propertySearch")
+    }
+
+    @Test
+    fun disconnectedPageSpeedSearchStaysInProviderAndFocusesSiteUrl() {
+        openPageSpeedDetail()
+
+        compose.onNodeWithTag("mainNavigation.search").performClick()
+
+        compose.onNodeWithTag("pagespeed.screen").assertIsDisplayed()
+        compose.onNodeWithTag("pagespeed.siteUrl").assertIsFocused()
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+    }
+
+    @Test
+    fun connectedPageSpeedSearchStaysInProviderAndExplainsSingleSiteScope() {
+        configurePageSpeedGateway(DebugPageSpeedScenario.CONNECTED)
+        compose.onNodeWithTag("mainNavigation.sites").performClick()
+        waitForTag("workspace.sites.pageSpeedConnection")
+        compose.onNodeWithTag("workspace.sites.pageSpeedConnection").performClick()
+        waitForTag("pagespeed.dashboard")
+
+        compose.onNodeWithTag("mainNavigation.search").performClick()
+
+        compose.onNodeWithTag("pagespeed.screen").assertIsDisplayed()
+        compose.onNodeWithTag("pagespeed.searchNotice").assertIsDisplayed()
+    }
+
+    @Test
+    fun connectedSearchConsoleKeepsDockAndContextualSearchReturnsToPropertiesOnce() {
+        configureSearchConsoleGateway(DebugSearchConsoleScenario.CONNECTED)
+        compose.onNodeWithTag("mainNavigation.sites").performClick()
+
+        waitForTag("workspace.sites.searchConsoleConnection")
+        compose.onNodeWithTag("workspace.sites.searchConsoleConnection").performClick()
+        waitForTag("searchConsole.propertySearch")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+        compose.onNodeWithTag("searchConsole.property.sc-domain:apoorvdarshan.com").performClick()
+        waitForTag("searchConsole.switchProperty")
+
+        compose.onNodeWithTag("mainNavigation.search").performClick()
+
+        waitForTag("searchConsole.propertySearch")
+        compose.onNodeWithTag("searchConsole.propertySearch").assertIsFocused()
+
+        compose.activityRule.scenario.recreate()
+
+        waitForTag("searchConsole.propertySearch")
+        compose.onNodeWithTag("searchConsole.propertySearch")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Focused, false))
+    }
+
+    @Test
+    fun searchConsoleAuthorizationSurvivesRecreationWithoutExposingCredentialUiState() {
+        configureSearchConsoleGateway(
+            scenario = DebugSearchConsoleScenario.DISCONNECTED,
+            blockConnect = true,
+        )
+        openSearchConsoleDetail()
+        compose.onNodeWithTag("searchConsole.connect").performClick()
+        compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
+            DebugSearchConsoleGatewayController.isConnectStarted()
+        }
+        compose.activityRule.scenario.onActivity { activity ->
+            check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0)
+        }
+
+        compose.activityRule.scenario.recreate()
+        waitForTag("searchConsole.screen")
+        compose.activityRule.scenario.onActivity(VercelticsTestActivity::releaseSearchConsoleConnect)
+
+        waitForTag("searchConsole.propertySearch")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+        compose.activityRule.scenario.onActivity { activity ->
+            check(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0)
+        }
     }
 
     @Test
@@ -321,7 +515,7 @@ class VercelticsNavigationTest {
         openNetlifyDetail()
 
         compose.onNodeWithTag("netlify.connectionForm").assertIsDisplayed()
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         compose.activityRule.scenario.onActivity { activity ->
             check(
                 activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
@@ -349,7 +543,7 @@ class VercelticsNavigationTest {
         compose.onNodeWithTag("workspace.hosting.connectNetlify").performClick()
 
         waitForTag("netlify.connectionForm")
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
     }
 
     @Test
@@ -360,7 +554,7 @@ class VercelticsNavigationTest {
         compose.onNodeWithTag("workspace.hosting.connectCloudflare").performClick()
 
         waitForTag("cloudflare.connectionForm")
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
     }
 
     @Test
@@ -373,6 +567,8 @@ class VercelticsNavigationTest {
         waitForTag("netlify.dashboard")
         compose.onNodeWithTag("netlify.site.netlify-test-site").performClick()
         waitForTag("netlify.siteDetail")
+        compose.onNodeWithTag("netlify.siteDetail")
+            .performScrollToNode(hasTestTag("netlify.deploy.debug-deploy"))
         compose.onNodeWithTag("netlify.deploy.debug-deploy").assertIsDisplayed()
         val restoreCallsBeforeRecreation = DebugNetlifyGatewayController.restoreCalls
 
@@ -392,6 +588,28 @@ class VercelticsNavigationTest {
     }
 
     @Test
+    fun connectedNetlifySearchClosesDetailAndFocusesSiteInventoryOnce() {
+        configureNetlifyGateway(DebugNetlifyScenario.CONNECTED)
+        waitForTag("workspace.hosting.netlifyConnection")
+        compose.onNodeWithTag("workspace.hosting.netlifyConnection").performClick()
+        waitForTag("netlify.dashboard")
+        compose.onNodeWithTag("netlify.site.netlify-test-site").performClick()
+        waitForTag("netlify.siteDetail")
+
+        compose.onNodeWithTag("mainNavigation.search").performClick()
+
+        waitForTag("netlify.search")
+        compose.onNodeWithTag("netlify.search").assertIsFocused()
+        compose.onAllNodesWithTag("netlify.siteDetail").assertCountEquals(0)
+
+        compose.activityRule.scenario.recreate()
+
+        waitForTag("netlify.search")
+        compose.onNodeWithTag("netlify.search")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Focused, false))
+    }
+
+    @Test
     fun netlifyConnectMutationSurvivesActivityRecreationWithoutSavingTokenInUi() {
         configureNetlifyGateway(DebugNetlifyScenario.DISCONNECTED, blockConnect = true)
         openNetlifyDetail()
@@ -406,7 +624,7 @@ class VercelticsNavigationTest {
         compose.activityRule.scenario.onActivity(VercelticsTestActivity::releaseNetlifyConnect)
 
         waitForTag("netlify.dashboard")
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         compose.activityRule.scenario.onActivity { activity ->
             check(
                 activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0,
@@ -438,7 +656,7 @@ class VercelticsNavigationTest {
         compose.activityRule.scenario.recreate()
 
         waitForTag("providerDetail.vercel")
-        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
         val editableText = compose.onNodeWithTag("vercel.token")
             .fetchSemanticsNode()
             .config[SemanticsProperties.EditableText]
@@ -525,6 +743,15 @@ class VercelticsNavigationTest {
         waitForTag("cloudflare.screen")
     }
 
+    private fun openSearchConsoleDetail() {
+        compose.onNodeWithTag("mainNavigation.sites").performClick()
+        waitForTag("workspace.sites.empty")
+        compose.onNodeWithTag("workspace.sites.connect").performClick()
+        waitForTag("connection.catalog.sites")
+        compose.onNodeWithTag("provider.googleSearchConsole").performClick()
+        waitForTag("searchConsole.screen")
+    }
+
     private fun configureGateway(
         scenario: DebugVercelScenario,
         blockConnect: Boolean = false,
@@ -558,6 +785,15 @@ class VercelticsNavigationTest {
     ) {
         compose.activityRule.scenario.onActivity { activity ->
             activity.configureCloudflareGateway(scenario, blockConnect)
+        }
+    }
+
+    private fun configureSearchConsoleGateway(
+        scenario: DebugSearchConsoleScenario,
+        blockConnect: Boolean = false,
+    ) {
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.configureSearchConsoleGateway(scenario, blockConnect)
         }
     }
 

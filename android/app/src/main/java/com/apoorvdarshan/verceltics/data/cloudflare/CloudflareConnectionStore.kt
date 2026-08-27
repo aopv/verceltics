@@ -31,7 +31,7 @@ class CloudflareConnectionStore(
     }
 
     /** Internal backend access for refresh. UI-facing restore never receives the token. */
-    internal fun loadForRefresh(): CloudflareStoredConnection? = repository.load()
+    internal fun loadForRefresh(): CloudflareVersionedConnection? = repository.loadWithRevision()
 
     fun saveValidatedConnection(
         token: SecretValue,
@@ -69,9 +69,11 @@ class CloudflareConnectionStore(
         repository.rollbackIfRevisionMatches(commit.recordCommit)
 
     /** Revision-CAS ensures a stale refresh cannot resurrect or replace newer credentials. */
-    fun persistRefreshResult(result: CloudflareFetchResult): Boolean {
-        val versioned = repository.loadWithRevision() ?: return false
-        val existing = versioned.connection
+    internal fun persistRefreshResult(
+        expected: CloudflareVersionedConnection,
+        result: CloudflareFetchResult,
+    ): Boolean {
+        val existing = expected.connection
         val liveSnapshot = when (result) {
             is CloudflareFetchResult.Complete -> result.snapshot
             is CloudflareFetchResult.Partial -> {
@@ -84,7 +86,7 @@ class CloudflareConnectionStore(
             "The Cloudflare refresh belongs to a different profile."
         }
         return repository.saveIfRevisionMatches(
-            expectedRevision = versioned.revision,
+            expectedRevision = expected.revision,
             connection = CloudflareStoredConnection(
                 account = CloudflareAccount(
                     profile = liveSnapshot.profile,

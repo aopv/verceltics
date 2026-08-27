@@ -46,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,13 +60,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.semantics.AccessibilityAction
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.password
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -100,9 +105,11 @@ private val CloudflareWarning = Color(0xFFFFD83D)
 fun CloudflareRoute(
     viewModel: CloudflareViewModel,
     onBack: () -> Unit,
+    searchRequestId: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     val routeBack = {
         if (!viewModel.handleBack()) onBack()
     }
@@ -111,6 +118,12 @@ fun CloudflareRoute(
         onDispose { viewModel.setRouteVisible(false) }
     }
     BackHandler(onBack = routeBack)
+    LaunchedEffect(searchRequestId) {
+        if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
+            lastHandledSearchRequestId = searchRequestId
+            if (state.selectedResource != null) viewModel.closeResource()
+        }
+    }
     CloudflareScreen(
         state = state,
         onBack = routeBack,
@@ -122,6 +135,7 @@ fun CloudflareRoute(
         onRequestDisconnect = viewModel::requestDisconnectConfirmation,
         onDismissDisconnect = viewModel::dismissDisconnectConfirmation,
         onConfirmDisconnect = viewModel::confirmDisconnect,
+        searchRequestId = searchRequestId,
         modifier = modifier,
     )
 }
@@ -138,6 +152,7 @@ fun CloudflareScreen(
     onRequestDisconnect: () -> Unit,
     onDismissDisconnect: () -> Unit,
     onConfirmDisconnect: () -> Unit,
+    searchRequestId: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -208,6 +223,7 @@ fun CloudflareScreen(
                 onSelectAccount = onSelectAccount,
                 onOpenResource = onOpenResource,
                 onDisconnect = onRequestDisconnect,
+                searchRequestId = searchRequestId,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -223,20 +239,21 @@ fun CloudflareConnectionCard(
     val provider = remember { checkNotNull(IntegrationCatalog.provider("cloudflare")) }
     val inventory = state.dashboard?.inventory
     val subtitle = inventory?.let {
-        "${it.loadedZoneCount} zones · ${it.loadedWorkerCount} workers"
+        val freshness = state.dashboard?.cacheState?.let(::cacheLabel) ?: "Saved"
+        "${it.loadedZoneCount} zones · ${it.loadedWorkerCount} workers · $freshness data"
     } ?: state.savedProfile?.displayName ?: state.error ?: "Saved connection"
     val status = when (state.status) {
-        CloudflareConnectionStatus.CONNECTED -> when (state.dashboard?.cacheState) {
-            CloudflareCacheState.LIVE -> "Live"
-            CloudflareCacheState.CACHED_FRESH -> "Saved"
-            CloudflareCacheState.CACHED_STALE -> "Stale"
-            null -> "Saved"
-        }
+        CloudflareConnectionStatus.CONNECTED -> if (
+            state.error != null || state.dashboard?.isPartial == true ||
+            state.dashboard?.warnings?.isNotEmpty() == true ||
+            state.dashboard?.inventory?.warnings?.isNotEmpty() == true
+        ) "Attention" else "Connected"
         CloudflareConnectionStatus.SAVED_UNAVAILABLE -> "Attention"
         CloudflareConnectionStatus.RESTORING -> "Restoring"
         CloudflareConnectionStatus.DISCONNECTED -> "Disconnected"
     }
     val haptic = LocalHapticFeedback.current
+    val stacked = shouldStackCloudflareConnectionCard(LocalDensity.current.fontScale)
     OffsetPanel(
         modifier = modifier.heightIn(min = 88.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -248,7 +265,45 @@ fun CloudflareConnectionCard(
         },
         testTag = "workspace.hosting.cloudflareConnection",
     ) {
-        Row(
+        if (stacked) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProviderMark(provider = provider, size = 46.dp)
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            provider.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            subtitle,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    StatusPill(
+                        status,
+                        if (status == "Attention") CloudflareWarning else CloudflareSuccess,
+                    )
+                }
+            }
+        } else Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
@@ -269,15 +324,13 @@ fun CloudflareConnectionCard(
             Spacer(Modifier.width(10.dp))
             StatusPill(
                 status,
-                if (state.status == CloudflareConnectionStatus.SAVED_UNAVAILABLE) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    CloudflareAccent
-                },
+                if (status == "Attention") CloudflareWarning else CloudflareSuccess,
             )
         }
     }
 }
+
+internal fun shouldStackCloudflareConnectionCard(fontScale: Float): Boolean = fontScale >= 1.3f
 
 @Composable
 private fun CloudflareTopBar(
@@ -508,18 +561,27 @@ private fun CloudflareDashboard(
     onSelectAccount: (String) -> Unit,
     onOpenResource: (CloudflareResourceKind, String) -> Unit,
     onDisconnect: () -> Unit,
+    searchRequestId: Int,
     modifier: Modifier = Modifier,
 ) {
     val dashboard = requireNotNull(state.dashboard)
     val inventory = dashboard.inventory
     var query by rememberSaveable(dashboard.selectedAccountId) { mutableStateOf("") }
-    var selectedKindName by rememberSaveable(dashboard.selectedAccountId) {
-        mutableStateOf(CloudflareResourceKind.ZONE.name)
-    }
     var showAccountPicker by rememberSaveable { mutableStateOf(false) }
-    val selectedKind = runCatching { CloudflareResourceKind.valueOf(selectedKindName) }
-        .getOrDefault(CloudflareResourceKind.ZONE)
+    var lastHandledSearchRequestId by rememberSaveable(dashboard.selectedAccountId) {
+        mutableIntStateOf(0)
+    }
     val haptic = LocalHapticFeedback.current
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(searchRequestId) {
+        if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
+            lastHandledSearchRequestId = searchRequestId
+            searchFocusRequester.requestFocus()
+            keyboard?.show()
+        }
+    }
 
     if (showAccountPicker) {
         CloudflareAccountPicker(
@@ -542,7 +604,7 @@ private fun CloudflareDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
-            CloudflareCommandCard(dashboard)
+            CloudflareCommandCard(dashboard, hasOperationError = state.error != null)
         }
         if (dashboard.accounts.size > 1) {
             item("account-picker") {
@@ -573,65 +635,54 @@ private fun CloudflareDashboard(
                 placeholder = "Search Cloudflare inventory",
                 modifier = Modifier.fillMaxWidth(),
                 testTag = "cloudflare.search",
-            )
-        }
-        item("sections") {
-            CloudflareSectionRail(
-                selected = selectedKind,
-                inventory = inventory,
-                onSelect = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    selectedKindName = it.name
-                },
+                focusRequester = searchFocusRequester,
             )
         }
         inventory?.let { loaded ->
-            when (selectedKind) {
-                CloudflareResourceKind.ZONE -> {
-                    val values = loaded.zones.filter { it.matches(query) }
-                    item("heading-zones") { CloudflareListHeading("Zones", values.size, loaded.loadedZoneCount) }
-                    if (values.isEmpty()) item("empty-zones") { CloudflareEmpty(query, "zones") }
-                    items(values, key = { "zone-${it.id}" }) { zone ->
-                        CloudflareResourceRow(
-                            title = zone.name,
-                            subtitle = listOfNotNull(zone.planName, zone.type).joinToString(" · ").ifBlank { "Cloudflare zone" },
-                            status = if (zone.isActive) "Active" else zone.status ?: "Unknown",
-                            icon = Icons.Rounded.Public,
-                            testTag = "cloudflare.zone.${zone.id}",
-                            onClick = { onOpenResource(CloudflareResourceKind.ZONE, zone.id) },
-                        )
-                    }
-                }
-                CloudflareResourceKind.PAGES -> {
-                    val values = loaded.pagesProjects.filter { it.matches(query) }
-                    item("heading-pages") { CloudflareListHeading("Pages projects", values.size, loaded.loadedPagesProjectCount) }
-                    if (values.isEmpty()) item("empty-pages") { CloudflareEmpty(query, "Pages projects") }
-                    items(values, key = { "pages-${it.id}" }) { project ->
-                        CloudflareResourceRow(
-                            title = project.name,
-                            subtitle = project.domains.firstOrNull() ?: project.subdomain ?: "Cloudflare Pages",
-                            status = project.latestDeploymentStatus ?: "Project",
-                            icon = Icons.Rounded.Description,
-                            testTag = "cloudflare.pages.${project.id}",
-                            onClick = { onOpenResource(CloudflareResourceKind.PAGES, project.id) },
-                        )
-                    }
-                }
-                CloudflareResourceKind.WORKER -> {
-                    val values = loaded.workers.filter { it.matches(query) }
-                    item("heading-workers") { CloudflareListHeading("Workers", values.size, loaded.loadedWorkerCount) }
-                    if (values.isEmpty()) item("empty-workers") { CloudflareEmpty(query, "Workers") }
-                    items(values, key = { "worker-${it.id}" }) { worker ->
-                        CloudflareResourceRow(
-                            title = worker.id,
-                            subtitle = worker.handlers.joinToString(", ").ifBlank { "Worker script" },
-                            status = if (worker.hasModules == true) "Modules" else "Script",
-                            icon = Icons.Rounded.Code,
-                            testTag = "cloudflare.worker.${worker.id}",
-                            onClick = { onOpenResource(CloudflareResourceKind.WORKER, worker.id) },
-                        )
-                    }
-                }
+            val zones = loaded.zones.filter { it.matches(query) }
+            item("heading-zones") {
+                CloudflareListHeading("Zones", zones.size, loaded.loadedZoneCount, "cloudflare.section.zones")
+            }
+            if (zones.isEmpty()) item("empty-zones") { CloudflareEmpty(query, "zones") }
+            items(zones, key = { "zone-${it.id}" }) { zone ->
+                CloudflareResourceRow(
+                    title = zone.name,
+                    subtitle = listOfNotNull(zone.planName, zone.type).joinToString(" · ").ifBlank { "Cloudflare zone" },
+                    status = if (zone.isActive) "Active" else zone.status ?: "Unknown",
+                    icon = Icons.Rounded.Public,
+                    testTag = "cloudflare.zone.${zone.id}",
+                    onClick = { onOpenResource(CloudflareResourceKind.ZONE, zone.id) },
+                )
+            }
+            val pages = loaded.pagesProjects.filter { it.matches(query) }
+            item("heading-pages") {
+                CloudflareListHeading("Pages projects", pages.size, loaded.loadedPagesProjectCount, "cloudflare.section.pages")
+            }
+            if (pages.isEmpty()) item("empty-pages") { CloudflareEmpty(query, "Pages projects") }
+            items(pages, key = { "pages-${it.id}" }) { project ->
+                CloudflareResourceRow(
+                    title = project.name,
+                    subtitle = project.domains.firstOrNull() ?: project.subdomain ?: "Cloudflare Pages",
+                    status = project.latestDeploymentStatus ?: "Project",
+                    icon = Icons.Rounded.Description,
+                    testTag = "cloudflare.pages.${project.id}",
+                    onClick = { onOpenResource(CloudflareResourceKind.PAGES, project.id) },
+                )
+            }
+            val workers = loaded.workers.filter { it.matches(query) }
+            item("heading-workers") {
+                CloudflareListHeading("Workers", workers.size, loaded.loadedWorkerCount, "cloudflare.section.workers")
+            }
+            if (workers.isEmpty()) item("empty-workers") { CloudflareEmpty(query, "Workers") }
+            items(workers, key = { "worker-${it.id}" }) { worker ->
+                CloudflareResourceRow(
+                    title = worker.id,
+                    subtitle = worker.handlers.joinToString(", ").ifBlank { "Worker script" },
+                    status = if (worker.hasModules == true) "Modules" else "Script",
+                    icon = Icons.Rounded.Code,
+                    testTag = "cloudflare.worker.${worker.id}",
+                    onClick = { onOpenResource(CloudflareResourceKind.WORKER, worker.id) },
+                )
             }
         } ?: item("no-account") {
             CloudflareWarningPanel("This token returned no accessible Cloudflare account inventory.")
@@ -652,9 +703,13 @@ private fun CloudflareDashboard(
 }
 
 @Composable
-private fun CloudflareCommandCard(dashboard: CloudflareDashboardUi) {
+private fun CloudflareCommandCard(dashboard: CloudflareDashboardUi, hasOperationError: Boolean) {
     val inventory = dashboard.inventory
     val stacked = LocalDensity.current.fontScale >= 1.45f
+    val needsAttention = hasOperationError || dashboard.isPartial || dashboard.warnings.isNotEmpty() ||
+        inventory?.warnings?.isNotEmpty() == true
+    val connectionLabel = if (needsAttention) "Attention" else "Connected"
+    val connectionColor = if (needsAttention) CloudflareWarning else CloudflareSuccess
     OffsetPanel(
         modifier = Modifier.fillMaxWidth(),
         color = CloudflareAccent,
@@ -675,13 +730,14 @@ private fun CloudflareCommandCard(dashboard: CloudflareDashboardUi) {
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "Token ${dashboard.profile.tokenStatus.lowercase()} · read-only",
+                        "Token ${dashboard.profile.tokenStatus.lowercase()} · read-only · ${cacheLabel(dashboard.cacheState)} data",
                         color = Color.Black.copy(alpha = 0.72f),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                StatusPill(cacheLabel(dashboard.cacheState), CloudflareSuccess)
+                if (!stacked) StatusPill(connectionLabel, connectionColor)
             }
+            if (stacked) StatusPill(connectionLabel, connectionColor)
             if (stacked) {
                 Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     CloudflareMetric("${inventory?.loadedZoneCount ?: 0}", "ZONES", Modifier.fillMaxWidth())
@@ -732,133 +788,81 @@ private fun CloudflareAccountPicker(
         onDismissRequest = onDismiss,
         testTag = "cloudflare.accountSheet",
     ) {
-        Text(
-            "CLOUDFLARE ACCOUNTS",
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-            style = MaterialTheme.typography.headlineMedium,
-        )
-        dashboard.accounts.forEach { account ->
-            val selected = account.id == dashboard.selectedAccountId
-            Surface(
-                onClick = { onSelect(account.id) },
-                enabled = enabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 5.dp)
-                    .testTag("cloudflare.account.${account.id}"),
-                color = if (selected) {
-                    CloudflareAccent.copy(alpha = 0.18f).compositeOver(MaterialTheme.colorScheme.surface)
-                } else {
-                    MaterialTheme.colorScheme.surface
-                },
-                border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) CloudflareAccent else MaterialTheme.colorScheme.outline),
-                shape = RoundedCornerShape(4.dp),
-                tonalElevation = 0.dp,
-            ) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Domain, contentDescription = null, tint = CloudflareAccent)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(account.name, style = MaterialTheme.typography.titleMedium)
-                        account.type?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .testTag("cloudflare.accountList"),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
+            item("title") {
+                Text(
+                    "CLOUDFLARE ACCOUNTS",
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+            }
+            items(dashboard.accounts, key = CloudflareAccountUi::id) { account ->
+                val isSelected = account.id == dashboard.selectedAccountId
+                Surface(
+                    onClick = { onSelect(account.id) },
+                    enabled = enabled,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 5.dp)
+                        .testTag("cloudflare.account.${account.id}")
+                        .semantics {
+                            role = Role.RadioButton
+                            selected = isSelected
+                        },
+                    color = if (isSelected) {
+                        CloudflareAccent.copy(alpha = 0.18f).compositeOver(MaterialTheme.colorScheme.surface)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    border = BorderStroke(
+                        if (isSelected) 2.dp else 1.dp,
+                        if (isSelected) CloudflareAccent else MaterialTheme.colorScheme.outline,
+                    ),
+                    shape = RoundedCornerShape(4.dp),
+                    tonalElevation = 0.dp,
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Domain, contentDescription = null, tint = CloudflareAccent)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(account.name, style = MaterialTheme.typography.titleMedium)
+                            account.type?.let {
+                                Text(
+                                    it,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                        if (isSelected) StatusPill("Current", CloudflareSuccess)
                     }
-                    if (selected) StatusPill("Current", CloudflareSuccess)
+                }
+            }
+            if (dashboard.accountsTruncatedForDisplay) {
+                item("truncation") {
+                    Text(
+                        "Showing ${dashboard.accounts.size} of ${dashboard.loadedAccountCount} accounts.",
+                        modifier = Modifier.padding(18.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
-        if (dashboard.accountsTruncatedForDisplay) {
-            Text(
-                "Showing ${dashboard.accounts.size} of ${dashboard.loadedAccountCount} accounts.",
-                modifier = Modifier.padding(18.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.height(24.dp))
     }
 }
 
 @Composable
-private fun CloudflareSectionRail(
-    selected: CloudflareResourceKind,
-    inventory: CloudflareInventoryUi?,
-    onSelect: (CloudflareResourceKind) -> Unit,
-) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        CloudflareSectionButton(
-            "ZONES",
-            inventory?.loadedZoneCount ?: 0,
-            Icons.Rounded.Public,
-            selected == CloudflareResourceKind.ZONE,
-            { onSelect(CloudflareResourceKind.ZONE) },
-            Modifier.weight(1f),
-            "cloudflare.section.zones",
-        )
-        CloudflareSectionButton(
-            "PAGES",
-            inventory?.loadedPagesProjectCount ?: 0,
-            Icons.Rounded.Description,
-            selected == CloudflareResourceKind.PAGES,
-            { onSelect(CloudflareResourceKind.PAGES) },
-            Modifier.weight(1f),
-            "cloudflare.section.pages",
-        )
-        CloudflareSectionButton(
-            "WORKERS",
-            inventory?.loadedWorkerCount ?: 0,
-            Icons.Rounded.Code,
-            selected == CloudflareResourceKind.WORKER,
-            { onSelect(CloudflareResourceKind.WORKER) },
-            Modifier.weight(1f),
-            "cloudflare.section.workers",
-        )
-    }
-}
-
-@Composable
-private fun CloudflareSectionButton(
-    label: String,
-    count: Int,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier,
-    testTag: String,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier
-            .heightIn(min = 76.dp)
-            .testTag(testTag)
-            .semantics {
-                role = Role.Tab
-                this.selected = selected
-            },
-        color = if (selected) CloudflareAccent else MaterialTheme.colorScheme.surface,
-        contentColor = if (selected) Color.Black else MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(2.dp, if (selected) Color.Black else MaterialTheme.colorScheme.outline),
-        tonalElevation = 0.dp,
-    ) {
-        Column(
-            Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(19.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(count.toString(), style = MaterialTheme.typography.titleMedium)
-            }
-            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun CloudflareListHeading(label: String, visible: Int, loaded: Int) {
+private fun CloudflareListHeading(label: String, visible: Int, loaded: Int, testTag: String) {
     Row(
         Modifier
             .fillMaxWidth()
+            .testTag(testTag)
             .semantics { heading() },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
@@ -941,7 +945,15 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
     ) {
         when (selection.kind) {
             CloudflareResourceKind.ZONE -> inventory?.zones?.firstOrNull { it.id == selection.id }?.let { zone ->
-                item("hero") { CloudflareDetailHero("ZONE", zone.name, Icons.Rounded.Public, if (zone.isActive) "Active" else zone.status) }
+                item("hero") {
+                    CloudflareDetailHero(
+                        "ZONE",
+                        zone.name,
+                        Icons.Rounded.Public,
+                        if (zone.isActive) "Active" else zone.status,
+                        if (zone.isActive) CloudflareSuccess else CloudflareWarning,
+                    )
+                }
                 item("status") { CloudflareKeyValue("Status", zone.status ?: "Not reported") }
                 item("plan") { CloudflareKeyValue("Plan", zone.planName ?: "Not reported") }
                 item("type") { CloudflareKeyValue("Type", zone.type ?: "Not reported") }
@@ -950,7 +962,15 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
                 item("id") { CloudflareKeyValue("Zone ID", zone.id) }
             }
             CloudflareResourceKind.PAGES -> inventory?.pagesProjects?.firstOrNull { it.id == selection.id }?.let { project ->
-                item("hero") { CloudflareDetailHero("PAGES PROJECT", project.name, Icons.Rounded.Description, project.latestDeploymentStatus) }
+                item("hero") {
+                    CloudflareDetailHero(
+                        "PAGES PROJECT",
+                        project.name,
+                        Icons.Rounded.Description,
+                        project.latestDeploymentStatus,
+                        deploymentStatusColor(project.latestDeploymentStatus),
+                    )
+                }
                 item("status") { CloudflareKeyValue("Latest deployment", project.latestDeploymentStatus ?: "Not reported") }
                 item("branch") { CloudflareKeyValue("Production branch", project.productionBranch ?: "Not reported") }
                 project.subdomain?.let { item("subdomain") { CloudflareKeyValue("Subdomain", it) } }
@@ -962,7 +982,15 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
                 item("id") { CloudflareKeyValue("Project ID", project.id) }
             }
             CloudflareResourceKind.WORKER -> inventory?.workers?.firstOrNull { it.id == selection.id }?.let { worker ->
-                item("hero") { CloudflareDetailHero("WORKER SCRIPT", worker.id, Icons.Rounded.Code, if (worker.hasModules == true) "Modules" else "Script") }
+                item("hero") {
+                    CloudflareDetailHero(
+                        "WORKER SCRIPT",
+                        worker.id,
+                        Icons.Rounded.Code,
+                        if (worker.hasModules == true) "Modules" else "Script",
+                        CloudflareAccent,
+                    )
+                }
                 item("modified") { CloudflareKeyValue("Modified", worker.modifiedOn ?: "Not reported") }
                 item("compatibility") { CloudflareKeyValue("Compatibility date", worker.compatibilityDate ?: "Not reported") }
                 item("assets") { CloudflareKeyValue("Static assets", worker.hasAssets?.let { if (it) "Included" else "None" } ?: "Not reported") }
@@ -986,23 +1014,34 @@ private fun CloudflareDetailHero(
     title: String,
     icon: ImageVector,
     status: String?,
+    statusColor: Color,
 ) {
+    val stacked = LocalDensity.current.fontScale >= 1.45f
     OffsetPanel(
         modifier = Modifier.fillMaxWidth(),
         color = CloudflareAccent,
         borderColor = MaterialTheme.colorScheme.outline,
         shadowColor = MaterialTheme.colorScheme.outline,
     ) {
-        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(58.dp).background(Color.Black), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = CloudflareAccent, modifier = Modifier.size(30.dp))
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(58.dp).background(Color.Black), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = CloudflareAccent, modifier = Modifier.size(30.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(eyebrow, color = Color.Black, style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        title,
+                        color = Color.Black,
+                        style = MaterialTheme.typography.headlineMedium,
+                        maxLines = if (stacked) 5 else 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (!stacked) status?.let { StatusPill(it, statusColor) }
             }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(eyebrow, color = Color.Black, style = MaterialTheme.typography.labelSmall)
-                Text(title, color = Color.Black, style = MaterialTheme.typography.headlineMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-            status?.let { StatusPill(it, CloudflareSuccess) }
+            if (stacked) status?.let { StatusPill(it, statusColor) }
         }
     }
 }
@@ -1026,7 +1065,9 @@ private fun CloudflareKeyValue(label: String, value: String) {
 private fun CloudflareFeedback(message: String, isError: Boolean) {
     val accent = if (isError) MaterialTheme.colorScheme.error else CloudflareAccent
     OffsetPanel(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite },
         color = accent.copy(alpha = 0.12f).compositeOver(MaterialTheme.colorScheme.surface),
         borderColor = accent,
         shadowColor = accent,
@@ -1228,6 +1269,13 @@ private fun cacheLabel(cacheState: CloudflareCacheState): String = when (cacheSt
     CloudflareCacheState.LIVE -> "Live"
     CloudflareCacheState.CACHED_FRESH -> "Saved"
     CloudflareCacheState.CACHED_STALE -> "Stale"
+}
+
+@Composable
+private fun deploymentStatusColor(status: String?): Color = when (status?.lowercase()) {
+    "success", "active", "ready", "deployed" -> CloudflareSuccess
+    "failed", "failure", "error", "canceled", "cancelled" -> MaterialTheme.colorScheme.error
+    else -> CloudflareWarning
 }
 
 private fun inventoryDisclosure(dashboard: CloudflareDashboardUi): String = buildList {

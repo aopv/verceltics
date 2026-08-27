@@ -7,6 +7,18 @@ import org.junit.Test
 
 class VercelWorkspaceStateTest {
     @Test
+    fun standardPhoneWidthKeepsDenseVercelRowsSideBySide() {
+        assertFalse(shouldUseStackedVercelLayout(availableWidthDp = 390f, fontScale = 1f))
+        assertFalse(shouldUseStackedVercelLayout(availableWidthDp = 344f, fontScale = 1.29f))
+    }
+
+    @Test
+    fun narrowWidthOrLargeTextStacksVercelRows() {
+        assertTrue(shouldUseStackedVercelLayout(availableWidthDp = 343f, fontScale = 1f))
+        assertTrue(shouldUseStackedVercelLayout(availableWidthDp = 390f, fontScale = 1.30f))
+    }
+
+    @Test
     fun coldRestoreKeepsSavedProjectRouteUntilDashboardIsKnown() {
         assertFalse(
             shouldClearSavedProjectSelection(

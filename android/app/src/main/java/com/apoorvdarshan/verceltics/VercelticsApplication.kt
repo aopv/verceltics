@@ -5,6 +5,7 @@ import com.apoorvdarshan.verceltics.ui.NativeVercelUiGateway
 import com.apoorvdarshan.verceltics.ui.cloudflare.NativeCloudflareUiGateway
 import com.apoorvdarshan.verceltics.ui.netlify.NativeNetlifyUiGateway
 import com.apoorvdarshan.verceltics.ui.pagespeed.NativePageSpeedUiGateway
+import com.apoorvdarshan.verceltics.ui.searchconsole.NativeSearchConsoleUiGateway
 
 class VercelticsApplication : Application() {
     val vercelGateway: NativeVercelUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -21,5 +22,9 @@ class VercelticsApplication : Application() {
 
     val cloudflareGateway: NativeCloudflareUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         NativeCloudflareUiGateway.create(this)
+    }
+
+    val searchConsoleGateway: NativeSearchConsoleUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        NativeSearchConsoleUiGateway.create(this)
     }
 }

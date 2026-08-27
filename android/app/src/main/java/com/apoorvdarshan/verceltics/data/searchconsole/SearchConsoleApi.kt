@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.data.searchconsole
 
+import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.HttpResponse
 import com.apoorvdarshan.verceltics.data.network.map
@@ -41,6 +42,18 @@ internal interface SearchConsoleReadApi {
 }
 
 internal interface SearchConsoleOAuthApi {
+    fun newExchangeAuthorizationCodeCall(
+        authorizationCode: SecretValue,
+        codeVerifier: SecretValue,
+        clientId: String,
+        redirectUri: String,
+        requestedScopes: List<String>,
+    ): CancelableCall<SearchConsoleOAuthCredential>
+
+    fun newIdentityCall(
+        credential: SearchConsoleOAuthCredential,
+    ): CancelableCall<SearchConsoleGoogleIdentity>
+
     fun newRefreshCredentialCall(
         credential: SearchConsoleOAuthCredential,
         clientId: String,
@@ -186,14 +199,93 @@ internal class SearchConsoleApi(
         }
     }
 
+    override fun newExchangeAuthorizationCodeCall(
+        authorizationCode: SecretValue,
+        codeVerifier: SecretValue,
+        clientId: String,
+        redirectUri: String,
+        requestedScopes: List<String>,
+    ): CancelableCall<SearchConsoleOAuthCredential> {
+        val safeClientId = validatedClientId(clientId)
+        val safeRedirectUri = validatedRedirectUri(redirectUri)
+        require(requestedScopes == requestedScopes.distinct() &&
+            requestedScopes.all { it.isNotBlank() && it.length <= MAX_SCOPE_CHARACTERS }) {
+            "Invalid requested Google OAuth scopes."
+        }
+        require(SearchConsoleOAuthCredential.READ_ONLY_SCOPE in requestedScopes) {
+            "Search Console read-only scope is required."
+        }
+        val body = authorizationCode.use { code ->
+            codeVerifier.use { verifier ->
+                formBody(
+                    listOf(
+                        "client_id" to safeClientId,
+                        "code" to code,
+                        "code_verifier" to verifier,
+                        "grant_type" to "authorization_code",
+                        "redirect_uri" to safeRedirectUri,
+                    ),
+                )
+            }
+        }
+        val request = SearchConsoleHttpRequest(
+            SearchConsoleGoogleOrigin.OAUTH_TOKEN,
+            "POST",
+            listOf("token"),
+            requestBody = body,
+            contentType = FORM_CONTENT_TYPE,
+        )
+        body.fill(0)
+        return transport.newCall(request).map { response ->
+            requireSuccessful(response, "exchange the Google authorization code")
+            val tokenResponse = response.useBody(parser::parseTokenResponse)
+            val credential = SearchConsoleOAuthCredential(
+                accessToken = tokenResponse.accessToken,
+                refreshToken = tokenResponse.refreshToken,
+                tokenType = tokenResponse.tokenType ?: "Bearer",
+                scopes = tokenResponse.scopes ?: requestedScopes,
+                expiresAtMillis = safeExpiry(nowMillis(), tokenResponse.expiresInSeconds),
+                subject = null,
+                email = null,
+            )
+            if (!credential.hasReadOnlyScope()) throw SearchConsoleApiException(
+                SearchConsoleFailure(
+                    SearchConsoleFailureKind.AUTHORIZATION,
+                    "Google did not grant Search Console read access.",
+                ),
+            )
+            if (credential.refreshToken == null) throw SearchConsoleApiException(
+                SearchConsoleFailure(
+                    SearchConsoleFailureKind.CONFIGURATION,
+                    "Google did not return offline access. Reconnect and grant consent.",
+                ),
+            )
+            credential
+        }
+    }
+
+    override fun newIdentityCall(
+        credential: SearchConsoleOAuthCredential,
+    ): CancelableCall<SearchConsoleGoogleIdentity> {
+        validateReadCredential(credential)
+        return transport.newCall(
+            SearchConsoleHttpRequest(
+                SearchConsoleGoogleOrigin.OPENID,
+                "GET",
+                listOf("v1", "userinfo"),
+                bearerToken = credential.accessToken,
+            ),
+        ).map { response ->
+            requireSuccessful(response, "load the Google account identity")
+            response.useBody(parser::parseIdentity)
+        }
+    }
+
     override fun newRefreshCredentialCall(
         credential: SearchConsoleOAuthCredential,
         clientId: String,
     ): CancelableCall<SearchConsoleOAuthCredential> {
-        val safeClientId = clientId.trim()
-        require(safeClientId.isNotEmpty() && safeClientId.length <= 2_048 && OAUTH_CLIENT_ID.matches(safeClientId)) {
-            "Invalid Google OAuth client id."
-        }
+        val safeClientId = validatedClientId(clientId)
         val refreshToken = credential.refreshToken ?: throw SearchConsoleApiException(
             SearchConsoleFailure(
                 SearchConsoleFailureKind.CONFIGURATION,
@@ -413,6 +505,21 @@ internal class SearchConsoleApi(
 
         private fun formEncode(value: String): String =
             URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+
+        private fun validatedClientId(value: String): String = value.trim().also { clientId ->
+            require(clientId.isNotEmpty() && clientId.length <= 2_048 && OAUTH_CLIENT_ID.matches(clientId)) {
+                "Invalid Google OAuth client id."
+            }
+        }
+
+        private fun validatedRedirectUri(value: String): String = value.trim().also { redirect ->
+            val parsed = runCatching { URI(redirect) }.getOrNull()
+            require(
+                parsed != null && parsed.scheme?.isNotBlank() == true && parsed.rawQuery == null &&
+                    parsed.rawFragment == null && parsed.userInfo == null &&
+                    parsed.path == "/oauthredirect" && '\r' !in redirect && '\n' !in redirect,
+            ) { "Invalid Google OAuth redirect URI." }
+        }
 
         private fun safeExpiry(now: Long, seconds: Long): Long {
             val millis = Math.multiplyExact(seconds, 1_000L)

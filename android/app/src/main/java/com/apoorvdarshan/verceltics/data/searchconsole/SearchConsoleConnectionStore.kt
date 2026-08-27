@@ -5,6 +5,8 @@ class SearchConsoleConnectionStore(
     private val repository: SearchConsoleConnectionRepository,
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
+    internal fun loadForRefresh(): SearchConsoleVersionedConnection? = repository.loadWithRevision()
+
     fun restore(): SearchConsoleRestoreResult = try {
         val connection = repository.load() ?: return SearchConsoleRestoreResult.NotConnected
         val now = nowMillis()
@@ -76,23 +78,21 @@ class SearchConsoleConnectionStore(
     )
 
     /** CAS-update for an inventory refresh. Failures never erase a usable offline cache. */
-    fun persistSnapshotRefresh(result: SearchConsoleFetchResult<SearchConsoleSnapshot>): Boolean {
-        val versioned = try {
-            repository.loadWithRevision()
-        } catch (_: Exception) {
-            return false
-        } ?: return false
+    internal fun persistSnapshotRefresh(
+        expected: SearchConsoleVersionedConnection,
+        result: SearchConsoleFetchResult<SearchConsoleSnapshot>,
+    ): Boolean {
         val snapshot = when (result) {
             is SearchConsoleFetchResult.Complete -> boundedSnapshot(result.value)
             is SearchConsoleFetchResult.Partial -> boundedSnapshot(result.value)
             is SearchConsoleFetchResult.Failure -> return false
         }
-        val existing = versioned.connection.cachedSnapshot
+        val existing = expected.connection.cachedSnapshot
         if (existing?.propertiesComplete == true && !snapshot.propertiesComplete) return false
         val cache = existing?.let { mergeCache(it, snapshot) } ?: snapshot
         return repository.saveIfRevisionMatches(
-            versioned.revision,
-            versioned.connection.copyWith(
+            expected.revision,
+            expected.connection.copyWith(
                 updatedAtMillis = nowMillis(),
                 cachedSnapshot = cache,
             ),

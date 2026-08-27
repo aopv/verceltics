@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -46,16 +47,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -74,11 +80,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
+import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
 import com.apoorvdarshan.verceltics.ui.components.ThemedActionButton
@@ -97,9 +105,12 @@ private val NetlifyWarning = Color(0xFFFFD83D)
 fun NetlifyRoute(
     viewModel: NetlifyViewModel,
     onBack: () -> Unit,
+    searchRequestId: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(searchRequestId) }
+    var siteSearchFocusRequestId by rememberSaveable { mutableIntStateOf(0) }
     val routeBack = {
         if (!viewModel.handleBack()) onBack()
     }
@@ -108,6 +119,16 @@ fun NetlifyRoute(
         onDispose { viewModel.setRouteVisible(false) }
     }
     BackHandler(onBack = routeBack)
+    LaunchedEffect(searchRequestId) {
+        if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
+            lastHandledSearchRequestId = searchRequestId
+            if (state.selectedSiteId != null) {
+                viewModel.closeSite()
+                withFrameNanos { }
+            }
+            siteSearchFocusRequestId += 1
+        }
+    }
     NetlifyScreen(
         state = state,
         onBack = routeBack,
@@ -119,6 +140,7 @@ fun NetlifyRoute(
         onRequestDisconnect = viewModel::requestDisconnectConfirmation,
         onDismissDisconnect = viewModel::dismissDisconnectConfirmation,
         onConfirmDisconnect = viewModel::confirmDisconnect,
+        searchFocusRequestId = siteSearchFocusRequestId,
         modifier = modifier,
     )
 }
@@ -135,6 +157,7 @@ fun NetlifyScreen(
     onRequestDisconnect: () -> Unit,
     onDismissDisconnect: () -> Unit,
     onConfirmDisconnect: () -> Unit,
+    searchFocusRequestId: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -205,6 +228,7 @@ fun NetlifyScreen(
                 state = state,
                 onOpenSite = onOpenSite,
                 onDisconnect = onRequestDisconnect,
+                searchFocusRequestId = searchFocusRequestId,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -220,24 +244,19 @@ fun NetlifyConnectionCard(
     val provider = remember { checkNotNull(IntegrationCatalog.provider("netlify")) }
     val haptic = LocalHapticFeedback.current
     val subtitle = state.dashboard?.let { dashboard ->
-        "${dashboard.loadedSiteCount} loaded site${if (dashboard.loadedSiteCount == 1) "" else "s"}"
+        "${dashboard.loadedSiteCount} loaded site${if (dashboard.loadedSiteCount == 1) "" else "s"} · ${cacheLabel(dashboard.cacheState)} data"
     } ?: state.savedAccount?.email ?: state.error ?: "Saved connection"
     val status = when (state.status) {
-        NetlifyConnectionStatus.CONNECTED -> when (state.dashboard?.cacheState) {
-            NetlifyCacheState.LIVE -> "Live"
-            NetlifyCacheState.CACHED_FRESH -> "Saved"
-            NetlifyCacheState.CACHED_STALE -> "Stale"
-            null -> "Saved"
-        }
+        NetlifyConnectionStatus.CONNECTED -> if (
+            state.error != null || state.dashboard?.isPartial == true ||
+            state.dashboard?.warnings?.isNotEmpty() == true
+        ) "Attention" else "Connected"
         NetlifyConnectionStatus.SAVED_UNAVAILABLE -> "Attention"
         NetlifyConnectionStatus.RESTORING -> "Restoring"
         NetlifyConnectionStatus.DISCONNECTED -> "Disconnected"
     }
-    val statusColor = if (state.status == NetlifyConnectionStatus.SAVED_UNAVAILABLE) {
-        MaterialTheme.colorScheme.error
-    } else {
-        NetlifyAccent
-    }
+    val statusColor = if (status == "Attention") NetlifyWarning else NetlifyAccent
+    val stacked = shouldStackNetlifyConnectionCard(LocalDensity.current.fontScale)
     OffsetPanel(
         modifier = modifier.heightIn(min = 88.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -249,7 +268,42 @@ fun NetlifyConnectionCard(
         },
         testTag = "workspace.hosting.netlifyConnection",
     ) {
-        Row(
+        if (stacked) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProviderMark(provider = provider, size = 46.dp)
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            provider.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            subtitle,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    StatusPill(status, statusColor)
+                }
+            }
+        } else Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
@@ -276,6 +330,8 @@ fun NetlifyConnectionCard(
         }
     }
 }
+
+internal fun shouldStackNetlifyConnectionCard(fontScale: Float): Boolean = fontScale >= 1.3f
 
 @Composable
 private fun NetlifyTopBar(
@@ -512,10 +568,32 @@ private fun NetlifyDashboard(
     state: NetlifyUiState,
     onOpenSite: (String) -> Unit,
     onDisconnect: () -> Unit,
+    searchFocusRequestId: Int,
     modifier: Modifier = Modifier,
 ) {
     val dashboard = requireNotNull(state.dashboard)
     val haptic = LocalHapticFeedback.current
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    var query by rememberSaveable { mutableStateOf("") }
+    var lastHandledSearchFocusRequestId by rememberSaveable { mutableIntStateOf(0) }
+    val visibleSites = remember(dashboard.sites, query) {
+        val normalized = query.trim()
+        if (normalized.isEmpty()) dashboard.sites else dashboard.sites.filter { site ->
+            site.name.contains(normalized, ignoreCase = true) ||
+                site.subtitle?.contains(normalized, ignoreCase = true) == true ||
+                site.url?.contains(normalized, ignoreCase = true) == true ||
+                site.status?.contains(normalized, ignoreCase = true) == true
+        }
+    }
+
+    LaunchedEffect(searchFocusRequestId) {
+        if (searchFocusRequestId > 0 && searchFocusRequestId != lastHandledSearchFocusRequestId) {
+            lastHandledSearchFocusRequestId = searchFocusRequestId
+            searchFocusRequester.requestFocus()
+            keyboard?.show()
+        }
+    }
     LazyColumn(
         modifier = modifier
             .fillMaxWidth()
@@ -524,15 +602,21 @@ private fun NetlifyDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
-            OffsetPanel(
-                modifier = Modifier.fillMaxWidth(),
-                color = NetlifyAccent,
-                borderColor = MaterialTheme.colorScheme.outline,
-                shadowColor = MaterialTheme.colorScheme.outline,
-                testTag = "netlify.summary",
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+            BoxWithConstraints {
+                val stacked = shouldStackNetlifySummary(
+                    availableWidthDp = maxWidth.value,
+                    fontScale = LocalDensity.current.fontScale,
+                )
+                val attention = state.error != null || dashboard.isPartial || dashboard.warnings.isNotEmpty()
+                OffsetPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = NetlifyAccent,
+                    borderColor = MaterialTheme.colorScheme.outline,
+                    shadowColor = MaterialTheme.colorScheme.outline,
+                    testTag = "netlify.summary",
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                         ProviderMark(
                             provider = checkNotNull(IntegrationCatalog.provider("netlify")),
                             size = 52.dp,
@@ -555,16 +639,32 @@ private fun NetlifyDashboard(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
+                            Text(
+                                "${cacheLabel(dashboard.cacheState)} data · read-only",
+                                color = Color.Black.copy(alpha = 0.66f),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
                         }
-                        StatusPill(cacheLabel(dashboard.cacheState), Color(0xFF2F9B55))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MetricTile("${dashboard.loadedSiteCount}", "LOADED SITES", Modifier.weight(1f))
-                        MetricTile(
-                            if (dashboard.providerInventoryComplete) "YES" else "NO",
-                            "COMPLETE",
-                            Modifier.weight(1f),
-                        )
+                            if (!stacked) {
+                                StatusPill(if (attention) "Attention" else "Connected", if (attention) NetlifyWarning else Color(0xFF2F9B55))
+                            }
+                        }
+                        if (stacked) {
+                            StatusPill(if (attention) "Attention" else "Connected", if (attention) NetlifyWarning else Color(0xFF2F9B55))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                MetricTile("${dashboard.loadedSiteCount}", "LOADED SITES", Modifier.fillMaxWidth())
+                                MetricTile(if (dashboard.providerInventoryComplete) "YES" else "NO", "COMPLETE", Modifier.fillMaxWidth())
+                            }
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                MetricTile("${dashboard.loadedSiteCount}", "LOADED SITES", Modifier.weight(1f))
+                                MetricTile(
+                                    if (dashboard.providerInventoryComplete) "YES" else "NO",
+                                    "COMPLETE",
+                                    Modifier.weight(1f),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -575,6 +675,17 @@ private fun NetlifyDashboard(
             item("inventory-warning") {
                 WarningPanel(inventoryDisclosure(dashboard))
             }
+        }
+        item("search") {
+            ControlSearchField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = "Search Netlify sites",
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "netlify.search",
+                focusRequester = searchFocusRequester,
+                onSearch = { keyboard?.hide() },
+            )
         }
         item("heading") {
             Row(
@@ -596,12 +707,15 @@ private fun NetlifyDashboard(
                 )
             }
         }
-        if (dashboard.sites.isEmpty()) {
+        if (visibleSites.isEmpty()) {
             item("empty") {
-                Text("Netlify returned no sites for this account.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (query.isBlank()) "Netlify returned no sites for this account." else "No Netlify sites match “$query”.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         } else {
-            items(dashboard.sites, key = NetlifySiteUi::id) { site ->
+            items(visibleSites, key = NetlifySiteUi::id) { site ->
                 NetlifySiteRow(site) {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     onOpenSite(site.id)
@@ -622,6 +736,11 @@ private fun NetlifyDashboard(
         }
     }
 }
+
+internal fun shouldStackNetlifySummary(
+    availableWidthDp: Float,
+    fontScale: Float,
+): Boolean = availableWidthDp < 340f || fontScale >= 1.3f
 
 @Composable
 private fun NetlifySiteRow(site: NetlifySiteUi, onClick: () -> Unit) {
@@ -874,28 +993,43 @@ private fun HistoryPanel(
         shadowOffset = 2.dp,
         testTag = testTag,
     ) {
-        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                if (detail.isNotBlank()) {
-                    Text(
-                        detail,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+        BoxWithConstraints {
+            val stacked = maxWidth < 350.dp || LocalDensity.current.fontScale >= 1.3f
+            if (stacked) {
+                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HistoryCopy(title, detail, timeMillis, Modifier.fillMaxWidth())
+                    StatusPill(status, statusColor(status))
                 }
-                timeMillis?.let {
-                    Text(
-                        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it)),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+            } else {
+                Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
+                    HistoryCopy(title, detail, timeMillis, Modifier.weight(1f))
+                    Spacer(Modifier.width(10.dp))
+                    StatusPill(status, statusColor(status))
                 }
             }
-            Spacer(Modifier.width(10.dp))
-            StatusPill(status, statusColor(status))
+        }
+    }
+}
+
+@Composable
+private fun HistoryCopy(title: String, detail: String, timeMillis: Long?, modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        if (detail.isNotBlank()) {
+            Text(
+                detail,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 5,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        timeMillis?.let {
+            Text(
+                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it)),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }

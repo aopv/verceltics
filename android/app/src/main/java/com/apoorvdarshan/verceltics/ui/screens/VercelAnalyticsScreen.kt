@@ -1,10 +1,13 @@
 package com.apoorvdarshan.verceltics.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
@@ -28,6 +32,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,12 +42,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -52,6 +59,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -191,30 +200,36 @@ internal fun VercelAnalyticsScreen(
                 item(key = "loading") { AnalyticsLoadingPanel() }
             }
 
-            state.error?.let { error ->
-                item(key = "error") {
-                    AnalyticsFeedbackPanel(
-                        title = "Analytics refresh failed",
-                        message = if (state.hasVisibleContent) {
-                            "$error Showing the last successful " +
-                                "${state.displayedRange?.shortLabel} · " +
-                                "${state.displayedEnvironment?.controlLabel} result."
-                        } else {
-                            error
-                        },
-                        isError = true,
-                    )
+            when (analyticsFeedbackPresentation(state.error, state.unavailableMessage)) {
+                AnalyticsFeedbackPresentation.ERROR -> {
+                    val error = checkNotNull(state.error)
+                    item(key = "error") {
+                        AnalyticsFeedbackPanel(
+                            title = "Analytics refresh failed",
+                            message = if (state.data != null) {
+                                "$error Showing the last successful " +
+                                    "${state.displayedRange?.shortLabel} · " +
+                                    "${state.displayedEnvironment?.controlLabel} result."
+                            } else {
+                                error
+                            },
+                            isError = true,
+                        )
+                    }
                 }
-            }
 
-            state.unavailableMessage?.let { message ->
-                item(key = "unavailable") {
-                    AnalyticsFeedbackPanel(
-                        title = "Analytics unavailable",
-                        message = message,
-                        isError = false,
-                    )
+                AnalyticsFeedbackPresentation.UNAVAILABLE -> {
+                    val message = checkNotNull(state.unavailableMessage)
+                    item(key = "unavailable") {
+                        AnalyticsFeedbackPanel(
+                            title = "Analytics unavailable",
+                            message = message,
+                            isError = false,
+                        )
+                    }
                 }
+
+                null -> Unit
             }
 
             state.data?.let { data ->
@@ -256,22 +271,58 @@ private fun ProjectIdentityPanel(project: VercelProjectUi, account: VercelAccoun
         color = MaterialTheme.colorScheme.primary,
         testTag = "workspace.hosting.analytics.identity",
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = project.name,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onPrimary,
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val useStackedLayout = shouldUseStackedVercelLayout(
+                availableWidthDp = maxWidth.value,
+                fontScale = LocalDensity.current.fontScale,
             )
-            Text(
-                text = listOfNotNull(project.framework, account.displayName).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
-            )
-            StatusPill(text = "Connected", color = MaterialTheme.colorScheme.tertiary)
+            if (useStackedLayout) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ProjectIdentityText(project, account, Modifier.fillMaxWidth())
+                    StatusPill(text = "Connected", color = MaterialTheme.colorScheme.tertiary)
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProjectIdentityText(project, account, Modifier.weight(1f))
+                    StatusPill(text = "Connected", color = MaterialTheme.colorScheme.tertiary)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun ProjectIdentityText(
+    project: VercelProjectUi,
+    account: VercelAccountUi,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(
+            text = project.name,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = listOfNotNull(project.framework, account.displayName).joinToString(" · "),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -283,16 +334,21 @@ private fun AnalyticsFilters(
     onRangeSelected: (VercelAnalyticsRange) -> Unit,
     onEnvironmentSelected: (VercelAnalyticsEnvironment) -> Unit,
 ) {
-    val configuration = LocalConfiguration.current
-    if (configuration.fontScale >= 1.35f) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            AnalyticsRangeMenu(range, enabled, onRangeSelected, Modifier.fillMaxWidth())
-            AnalyticsEnvironmentMenu(environment, enabled, onEnvironmentSelected, Modifier.fillMaxWidth())
-        }
-    } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AnalyticsRangeMenu(range, enabled, onRangeSelected, Modifier.weight(1f))
-            AnalyticsEnvironmentMenu(environment, enabled, onEnvironmentSelected, Modifier.weight(1f))
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val useStackedLayout = shouldUseStackedVercelLayout(
+            availableWidthDp = maxWidth.value,
+            fontScale = LocalDensity.current.fontScale,
+        )
+        if (useStackedLayout) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AnalyticsRangeMenu(range, enabled, onRangeSelected, Modifier.fillMaxWidth())
+                AnalyticsEnvironmentMenu(environment, enabled, onEnvironmentSelected, Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AnalyticsRangeMenu(range, enabled, onRangeSelected, Modifier.weight(1f))
+                AnalyticsEnvironmentMenu(environment, enabled, onEnvironmentSelected, Modifier.weight(1f))
+            }
         }
     }
 }
@@ -378,11 +434,67 @@ private fun AnalyticsMenu(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 220.dp, max = 320.dp),
             containerColor = MaterialTheme.colorScheme.surface,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+            tonalElevation = 0.dp,
+            shadowElevation = 12.dp,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
         ) {
             entries.forEach { (label, select) ->
+                val isSelected = label == value
                 DropdownMenuItem(
-                    text = { Text(label) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 52.dp)
+                        .background(
+                            if (isSelected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
+                        )
+                        .semantics {
+                            selected = isSelected
+                            if (isSelected) stateDescription = "Selected"
+                        },
+                    text = {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
+                        )
+                    },
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .height(28.dp)
+                                .background(
+                                    if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    },
+                                ),
+                        )
+                    },
+                    trailingIcon = if (isSelected) {
+                        {
+                            Icon(
+                                Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    colors = MenuDefaults.itemColors(
+                        textColor = MaterialTheme.colorScheme.onSurface,
+                        leadingIconColor = MaterialTheme.colorScheme.primary,
+                        trailingIconColor = MaterialTheme.colorScheme.tertiary,
+                    ),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                         expanded = false
@@ -437,7 +549,11 @@ private fun AnalyticsFeedbackPanel(title: String, message: String, isError: Bool
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = title,
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+            )
             Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -462,14 +578,19 @@ private fun AnalyticsStats(data: VercelAnalyticsDataUi) {
             bounceChange(data.overview.bounceRate, data.previousOverview?.bounceRate),
         ),
     )
-    val largeText = LocalConfiguration.current.fontScale >= 1.35f
-    if (largeText) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            stats.forEach { AnalyticsStatPanel(it, Modifier.fillMaxWidth()) }
-        }
-    } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            stats.forEach { AnalyticsStatPanel(it, Modifier.weight(1f)) }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val useStackedLayout = shouldUseStackedVercelLayout(
+            availableWidthDp = maxWidth.value,
+            fontScale = LocalDensity.current.fontScale,
+        )
+        if (useStackedLayout) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                stats.forEach { AnalyticsStatPanel(it, Modifier.fillMaxWidth()) }
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                stats.forEach { AnalyticsStatPanel(it, Modifier.weight(1f)) }
+            }
         }
     }
 }
@@ -582,70 +703,137 @@ private fun AnalyticsBreakdownPanel(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-                    .semantics { heading() },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                Text("VIEWS", style = MaterialTheme.typography.labelSmall)
-                Spacer(Modifier.width(12.dp))
-                Text("VISITORS", style = MaterialTheme.typography.labelSmall)
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
-            if (items.isEmpty()) {
-                Text(
-                    text = lockedMessage ?: "No data available",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                val maximumVisitors = items.maxOf { it.visitors }.coerceAtLeast(1L)
-                items.take(8).forEach { item ->
-                    Box(
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val useStackedLayout = shouldUseStackedVercelLayout(
+                availableWidthDp = maxWidth.value,
+                fontScale = LocalDensity.current.fontScale,
+            )
+            Column {
+                if (useStackedLayout) {
+                    Text(
+                        text = title,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 46.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                            .semantics { heading() },
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                            .semantics { heading() },
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(item.visitors.toFloat() / maximumVisitors.toFloat())
-                                .height(46.dp)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        Text("VIEWS", style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.width(12.dp))
+                        Text("VISITORS", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                if (items.isEmpty()) {
+                    Text(
+                        text = lockedMessage ?: "No data available",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    val maximumVisitors = items.maxOf { it.visitors }.coerceAtLeast(1L)
+                    items.take(8).forEach { item ->
+                        AnalyticsBreakdownRow(
+                            item = item,
+                            emptyLabel = emptyLabel,
+                            maximumVisitors = maximumVisitors,
+                            stacked = useStackedLayout,
                         )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = item.key.ifBlank { emptyLabel.ifBlank { "Unknown" } },
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                formatMetric(item.pageViews),
-                                modifier = Modifier.widthIn(min = 54.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                            Text(
-                                formatMetric(item.visitors),
-                                modifier = Modifier.widthIn(min = 58.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AnalyticsBreakdownRow(
+    item: VercelAnalyticsBreakdownUi,
+    emptyLabel: String,
+    maximumVisitors: Long,
+    stacked: Boolean,
+) {
+    val fillFraction = item.visitors.toFloat() / maximumVisitors.toFloat()
+    val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = if (stacked) 76.dp else 48.dp)
+            .drawBehind {
+                drawRect(
+                    color = fillColor,
+                    size = Size(width = size.width * fillFraction, height = size.height),
+                )
+            },
+    ) {
+        if (stacked) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    text = item.key.ifBlank { emptyLabel.ifBlank { "Unknown" } },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    BreakdownMetric("Views", item.pageViews)
+                    BreakdownMetric("Visitors", item.visitors)
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = item.key.ifBlank { emptyLabel.ifBlank { "Unknown" } },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    formatMetric(item.pageViews),
+                    modifier = Modifier.widthIn(min = 54.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text(
+                    formatMetric(item.visitors),
+                    modifier = Modifier.widthIn(min = 58.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BreakdownMetric(label: String, value: Long) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label.uppercase(Locale.ROOT),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(formatMetric(value), style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -685,6 +873,21 @@ private fun AnalyticsProjectValue(label: String, value: String) {
 }
 
 private data class AnalyticsStat(val label: String, val value: String, val change: Double?)
+
+internal enum class AnalyticsFeedbackPresentation {
+    ERROR,
+    UNAVAILABLE,
+}
+
+/** A refresh failure takes precedence over a retained unavailable result, so only one card renders. */
+internal fun analyticsFeedbackPresentation(
+    error: String?,
+    unavailableMessage: String?,
+): AnalyticsFeedbackPresentation? = when {
+    error != null -> AnalyticsFeedbackPresentation.ERROR
+    unavailableMessage != null -> AnalyticsFeedbackPresentation.UNAVAILABLE
+    else -> null
+}
 
 private data class AnalyticsBreakdownSection(
     val title: String,

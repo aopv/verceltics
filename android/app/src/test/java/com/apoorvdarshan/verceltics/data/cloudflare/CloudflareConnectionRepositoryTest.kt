@@ -197,10 +197,12 @@ class CloudflareConnectionRepositoryTest {
         val store = MemoryAtomicBytesStore()
         val repository = CloudflareConnectionRepository(store, TestAccountCipher())
         repository.save(connection("base-token", completeSnapshot()))
-        store.interceptReads { readNumber -> if (readNumber == 2) store.bytes = null }
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 700L })
+        val expected = checkNotNull(connectionStore.loadForRefresh())
+        store.bytes = null
 
         val persisted = connectionStore.persistRefreshResult(
+            expected,
             CloudflareFetchResult.Complete(completeSnapshot(fetchedAt = 700L, zoneCount = 2)),
         )
 
@@ -219,12 +221,12 @@ class CloudflareConnectionRepositoryTest {
         val store = MemoryAtomicBytesStore()
         val repository = CloudflareConnectionRepository(store, TestAccountCipher())
         repository.save(connection("base-token", completeSnapshot()))
-        store.interceptReads { readNumber ->
-            if (readNumber == 2) store.bytes = newerEnvelope.copyOf()
-        }
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 750L })
+        val expected = checkNotNull(connectionStore.loadForRefresh())
+        store.bytes = newerEnvelope.copyOf()
 
         val persisted = connectionStore.persistRefreshResult(
+            expected,
             CloudflareFetchResult.Complete(completeSnapshot(fetchedAt = 750L, zoneCount = 2)),
         )
 
@@ -314,7 +316,12 @@ class CloudflareConnectionRepositoryTest {
         )
         val store = CloudflareConnectionStore(repository, nowMillis = { 950L })
 
-        assertTrue(store.persistRefreshResult(CloudflareFetchResult.Partial(candidate, listOf(NETWORK_FAILURE))))
+        assertTrue(
+            store.persistRefreshResult(
+                checkNotNull(store.loadForRefresh()),
+                CloudflareFetchResult.Partial(candidate, listOf(NETWORK_FAILURE)),
+            ),
+        )
 
         val cached = checkNotNull(repository.load()?.cachedSnapshot?.selectedAccountInventory)
         assertEquals(listOf("zone-0", "zone-1"), cached.zones.map { it.id })
@@ -367,6 +374,7 @@ class CloudflareConnectionRepositoryTest {
 
         assertTrue(
             store.persistRefreshResult(
+                checkNotNull(store.loadForRefresh()),
                 CloudflareFetchResult.Partial(
                     oversizedPartial(200, 1_200L),
                     listOf(NETWORK_FAILURE),
@@ -405,6 +413,7 @@ class CloudflareConnectionRepositoryTest {
 
         assertTrue(
             store.persistRefreshResult(
+                checkNotNull(store.loadForRefresh()),
                 CloudflareFetchResult.Partial(otherwisePartial, listOf(NETWORK_FAILURE)),
             ),
         )
@@ -436,6 +445,7 @@ class CloudflareConnectionRepositoryTest {
 
         assertTrue(
             store.persistRefreshResult(
+                checkNotNull(store.loadForRefresh()),
                 CloudflareFetchResult.Partial(partialSnapshot(), listOf(NETWORK_FAILURE)),
             ),
         )

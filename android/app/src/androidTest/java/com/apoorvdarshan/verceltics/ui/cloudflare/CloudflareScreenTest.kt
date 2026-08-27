@@ -2,6 +2,8 @@ package com.apoorvdarshan.verceltics.ui.cloudflare
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -51,16 +53,43 @@ class CloudflareScreenTest {
 
         compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.search.clear"))
         compose.onNodeWithTag("cloudflare.search.clear").performClick()
+        compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.zone.zone-one"))
+        compose.onNodeWithTag("cloudflare.zone.zone-one").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.pages.pages-one"))
+        compose.onNodeWithTag("cloudflare.pages.pages-one").assertIsDisplayed()
         compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.section.workers"))
-        compose.onNodeWithTag("cloudflare.section.workers").performClick()
         compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.worker.worker-one"))
         compose.onNodeWithTag("cloudflare.worker.worker-one").assertIsDisplayed()
 
         compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.accountPicker"))
         compose.onNodeWithTag("cloudflare.accountPicker").performClick()
         compose.onNodeWithTag("cloudflare.accountSheet").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.account.account-one").assertIsSelected()
         compose.onNodeWithTag("cloudflare.account.account-two").performClick()
         compose.runOnIdle { assertEquals("account-two", selectedAccount) }
+    }
+
+    @Test
+    fun contextualSearchRequestFocusesCloudflareSearch() {
+        compose.setContent {
+            VercelticsTheme {
+                CloudflareScreen(
+                    state = connectedState(),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSelectAccount = {},
+                    onOpenResource = { _, _ -> },
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    searchRequestId = 1,
+                )
+            }
+        }
+
+        compose.onNodeWithTag("cloudflare.search").assertIsFocused()
     }
 
     @Test

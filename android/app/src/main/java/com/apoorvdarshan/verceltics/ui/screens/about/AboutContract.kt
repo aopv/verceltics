@@ -78,6 +78,8 @@ enum class AboutDestination(val uri: String) {
     CONTACT("mailto:ad13dtu@gmail.com"),
     REPORT_ISSUE("https://github.com/apoorvdarshan/verceltics/issues"),
     PRODUCT_HUNT("https://www.producthunt.com/products/verceltics"),
+    RATE_APP("market://details?id=com.apoorvdarshan.verceltics"),
+    SUPPORT_DEVELOPMENT("https://ko-fi.com/apoorvdarshan"),
     PRIVACY_POLICY("https://verceltics.com/privacy"),
     TERMS_OF_SERVICE("https://verceltics.com/terms"),
     LICENSE("https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE"),

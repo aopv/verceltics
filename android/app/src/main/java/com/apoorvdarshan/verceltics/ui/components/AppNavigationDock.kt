@@ -12,8 +12,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -94,15 +96,8 @@ fun AppNavigationDock(
     showsAboutBadge: Boolean = false,
 ) {
     val fontScale = LocalDensity.current.fontScale
-    val usesIconOnlyLayout = usesIconOnlyNavigationLayout(fontScale)
-    val dockHeight = if (usesIconOnlyLayout) {
-        64.dp
-    } else {
-        (62f + (fontScale - 1f).coerceAtLeast(0f) * 28f).dp
-    }
-    val searchWidth = if (usesIconOnlyLayout) 60.dp else 68.dp
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             // This pointer target owns the complete dock rectangle, including safe-area padding.
@@ -113,59 +108,154 @@ fun AppNavigationDock(
             .testTag("mainNavigation.dock")
             .semantics { isTraversalGroup = true },
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            GlassDockSurface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(dockHeight + DockShadowYOffset),
-                shape = DockShape,
-                tintStrength = 0.12f,
-                testTag = "mainNavigation.primary",
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AppNavigationDestination.entries.forEach { destination ->
-                        NavigationDestinationButton(
-                            destination = destination,
-                            isSelected = selectedDestination == destination,
-                            showsBadge = showsAboutBadge &&
-                                destination == AppNavigationDestination.ABOUT,
-                            usesIconOnlyLayout = usesIconOnlyLayout,
-                            onClick = { onDestinationSelected(destination) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-            }
+        val labelLayout = navigationLabelLayout(
+            availableWidthDp = maxWidth.value,
+            fontScale = fontScale,
+        )
+        val dockArrangement = navigationDockArrangement(maxWidth.value)
+        val dockHeight = if (labelLayout == NavigationLabelLayout.ICON_ONLY) {
+            64.dp
+        } else {
+            (62f + (fontScale - 1f).coerceAtLeast(0f) * 28f).dp
+        }
+        val searchWidth = if (labelLayout == NavigationLabelLayout.ICON_ONLY) 56.dp else 68.dp
 
-            SearchDockButton(
-                onClick = onSearch,
-                usesIconOnlyLayout = usesIconOnlyLayout,
+        if (dockArrangement == NavigationDockArrangement.STACKED_SEARCH) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PrimaryNavigationDock(
+                    selectedDestination = selectedDestination,
+                    onDestinationSelected = onDestinationSelected,
+                    showsAboutBadge = showsAboutBadge,
+                    labelLayout = NavigationLabelLayout.ICON_ONLY,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp + DockShadowYOffset),
+                )
+                SearchDockButton(
+                    onClick = onSearch,
+                    labelLayout = NavigationLabelLayout.COMPACT,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(accessibleLabeledDockHeight(fontScale) + DockShadowYOffset),
+                )
+            }
+        } else {
+            Row(
                 modifier = Modifier
-                    .width(searchWidth + DockShadowXOffset)
-                    .height(dockHeight + DockShadowYOffset),
-            )
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                PrimaryNavigationDock(
+                    selectedDestination = selectedDestination,
+                    onDestinationSelected = onDestinationSelected,
+                    showsAboutBadge = showsAboutBadge,
+                    labelLayout = labelLayout,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(dockHeight + DockShadowYOffset),
+                )
+
+                SearchDockButton(
+                    onClick = onSearch,
+                    labelLayout = labelLayout,
+                    modifier = Modifier
+                        .width(searchWidth + DockShadowXOffset)
+                        .height(dockHeight + DockShadowYOffset),
+                )
+            }
         }
     }
 }
 
-internal fun usesIconOnlyNavigationLayout(fontScale: Float): Boolean = fontScale >= 1.3f
+internal enum class NavigationLabelLayout {
+    FULL,
+    COMPACT,
+    ICON_ONLY,
+}
+
+internal enum class NavigationDockArrangement {
+    INLINE,
+    STACKED_SEARCH,
+}
+
+/** Pure layout policy so narrow-screen and accessibility behavior can be regression tested. */
+internal fun navigationLabelLayout(
+    availableWidthDp: Float,
+    fontScale: Float,
+): NavigationLabelLayout = when {
+    availableWidthDp < 304f || fontScale >= 1.3f -> NavigationLabelLayout.ICON_ONLY
+    // maxWidth is measured after the dock's 12dp side insets. A standard 390dp phone therefore
+    // reports about 366dp here and must retain the user-facing labels rather than abbreviations.
+    availableWidthDp < 360f || fontScale >= 1.15f -> NavigationLabelLayout.COMPACT
+    else -> NavigationLabelLayout.FULL
+}
+
+/**
+ * Inline navigation needs 286dp after the dock's outer padding to keep all four primary targets
+ * at least 48dp wide alongside Search. Below that, Search moves to its own row.
+ */
+internal fun navigationDockArrangement(availableWidthDp: Float): NavigationDockArrangement =
+    if (availableWidthDp < 286f) {
+        NavigationDockArrangement.STACKED_SEARCH
+    } else {
+        NavigationDockArrangement.INLINE
+    }
+
+/** Estimated primary hit-target width in the stacked fallback, kept pure for unit coverage. */
+internal fun stackedPrimaryTargetWidthDp(availableWidthDp: Float): Float =
+    (availableWidthDp - 3f - (2f * 5f) - (3f * 4f)) / AppNavigationDestination.entries.size
+
+private fun accessibleLabeledDockHeight(fontScale: Float): Dp =
+    (62f + (fontScale - 1f).coerceAtLeast(0f) * 28f).dp
+
+@Composable
+private fun PrimaryNavigationDock(
+    selectedDestination: AppNavigationDestination,
+    onDestinationSelected: (AppNavigationDestination) -> Unit,
+    showsAboutBadge: Boolean,
+    labelLayout: NavigationLabelLayout,
+    modifier: Modifier = Modifier,
+) {
+    GlassDockSurface(
+        modifier = modifier,
+        shape = DockShape,
+        tintStrength = 0.12f,
+        testTag = "mainNavigation.primary",
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppNavigationDestination.entries.forEach { destination ->
+                NavigationDestinationButton(
+                    destination = destination,
+                    isSelected = selectedDestination == destination,
+                    showsBadge = showsAboutBadge &&
+                        destination == AppNavigationDestination.ABOUT,
+                    labelLayout = labelLayout,
+                    onClick = { onDestinationSelected(destination) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minWidth = MinimumTouchTarget),
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun NavigationDestinationButton(
     destination: AppNavigationDestination,
     isSelected: Boolean,
     showsBadge: Boolean,
-    usesIconOnlyLayout: Boolean,
+    labelLayout: NavigationLabelLayout,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -185,6 +275,13 @@ private fun NavigationDestinationButton(
         targetValue = if (isSelected) colors.onPrimary else colors.onSurface,
         label = "${destination.id} dock content",
     )
+    val isDark = colors.surface.luminance() < 0.5f
+    val selectedShadowColor = if (isDark) {
+        colors.primary.copy(alpha = 0.58f)
+    } else {
+        Color.Black.copy(alpha = 0.80f)
+    }
+    val selectedRailColor = if (isDark) colors.onSurface else colors.outline
 
     Box(
         modifier = modifier
@@ -196,7 +293,7 @@ private fun NavigationDestinationButton(
                 modifier = Modifier
                     .fillMaxSize()
                     .offset(x = SelectedShadowXOffset, y = SelectedShadowYOffset)
-                    .background(HardShadowColor, SelectedShape),
+                    .background(selectedShadowColor, SelectedShape),
             )
         }
 
@@ -231,9 +328,13 @@ private fun NavigationDestinationButton(
                         contentDescription = null,
                         modifier = Modifier.size(21.dp),
                     )
-                    if (!usesIconOnlyLayout) {
+                    if (labelLayout != NavigationLabelLayout.ICON_ONLY) {
                         Text(
-                            text = destination.label,
+                            text = if (labelLayout == NavigationLabelLayout.COMPACT) {
+                                destination.compactLabel
+                            } else {
+                                destination.label
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -251,6 +352,17 @@ private fun NavigationDestinationButton(
                             .border(1.dp, colors.outline, CircleShape),
                     )
                 }
+
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 3.dp)
+                            .width(22.dp)
+                            .height(3.dp)
+                            .background(selectedRailColor, RoundedCornerShape(2.dp)),
+                    )
+                }
             }
         }
     }
@@ -259,7 +371,7 @@ private fun NavigationDestinationButton(
 @Composable
 private fun SearchDockButton(
     onClick: () -> Unit,
-    usesIconOnlyLayout: Boolean,
+    labelLayout: NavigationLabelLayout,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -314,7 +426,7 @@ private fun SearchDockButton(
                         contentDescription = null,
                         modifier = Modifier.size(23.dp),
                     )
-                    if (!usesIconOnlyLayout) {
+                    if (labelLayout != NavigationLabelLayout.ICON_ONLY) {
                         Text(
                             text = "Search",
                             style = MaterialTheme.typography.labelSmall,
@@ -397,4 +509,4 @@ private val DockShadowXOffset: Dp = 3.dp
 private val DockShadowYOffset: Dp = 4.dp
 private val SelectedShadowXOffset: Dp = 2.dp
 private val SelectedShadowYOffset: Dp = 3.dp
-private val HardShadowColor = Color.Black.copy(alpha = 0.80f)
+private val MinimumTouchTarget: Dp = 48.dp

@@ -258,9 +258,9 @@ private fun ProviderConnectPlaceholder(provider: IntegrationProvider) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("Connection coming next", style = MaterialTheme.typography.titleLarge)
+                    Text("Android connection planned", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "${provider.displayName} stays read-only during this migration slice.",
+                        "${provider.displayName} is listed for discoverability, but its native Android connection is not available in this build yet.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

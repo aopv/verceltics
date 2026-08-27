@@ -22,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,7 +34,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -72,12 +74,16 @@ import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenState
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutUpdateState
 import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleConnectionCard
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleRoute
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleViewModel
 
 private const val UI_PREFERENCES = "verceltics.ui"
 private const val LAST_PRIMARY_WORKSPACE = "lastPrimaryWorkspace"
 private const val PAGE_SPEED_PROVIDER_ID = "pageSpeed"
 private const val NETLIFY_PROVIDER_ID = "netlify"
 private const val CLOUDFLARE_PROVIDER_ID = "cloudflare"
+private const val SEARCH_CONSOLE_PROVIDER_ID = "googleSearchConsole"
 
 private enum class MainDestination(
     val id: String,
@@ -121,6 +127,7 @@ fun VercelticsApp(
     pageSpeedViewModel: PageSpeedViewModel,
     netlifyViewModel: NetlifyViewModel,
     cloudflareViewModel: CloudflareViewModel,
+    searchConsoleViewModel: SearchConsoleViewModel,
     aboutState: AboutScreenState = defaultAboutScreenState(),
     onAboutAction: (AboutScreenAction) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -140,19 +147,39 @@ fun VercelticsApp(
     var lastWorkspaceId by rememberSaveable { mutableStateOf(restoredWorkspace.id) }
     var providerId by rememberSaveable { mutableStateOf<String?>(null) }
     var hostingSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var registrarSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var sitesSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var pageSpeedSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var netlifySearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var cloudflareSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var searchConsoleSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     var hostingRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
-    var hostingSearchAvailable by rememberSaveable { mutableStateOf(false) }
     val connectionState by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     val pageSpeedState by pageSpeedViewModel.uiState.collectAsStateWithLifecycle()
     val netlifyState by netlifyViewModel.uiState.collectAsStateWithLifecycle()
     val cloudflareState by cloudflareViewModel.uiState.collectAsStateWithLifecycle()
+    val searchConsoleState by searchConsoleViewModel.uiState.collectAsStateWithLifecycle()
+    val connectedSiteProviderIds = remember(
+        pageSpeedState.isConnected,
+        searchConsoleState.isConnected,
+    ) {
+        buildSet {
+            if (pageSpeedState.isConnected) add(PAGE_SPEED_PROVIDER_ID)
+            if (searchConsoleState.isConnected) add(SEARCH_CONSOLE_PROVIDER_ID)
+        }
+    }
     val destination = MainDestination.fromId(destinationId)
     val provider = providerId?.let(IntegrationCatalog::provider)
     val destinationState = rememberSaveableStateHolder()
     val haptic = LocalHapticFeedback.current
 
-    fun selectDestination(selected: MainDestination) {
+    fun closeProvider() {
         providerId = null
+        cloudflareSearchRequestId = 0
+    }
+
+    fun selectDestination(selected: MainDestination) {
+        closeProvider()
         destinationId = selected.id
         selected.workspace?.let { workspace ->
             lastWorkspaceId = workspace.id
@@ -161,38 +188,67 @@ fun VercelticsApp(
     }
 
     fun requestSearch() {
-        val preferredWorkspace = destination.workspace
+        if (provider?.id == PAGE_SPEED_PROVIDER_ID) {
+            pageSpeedSearchRequestId += 1
+            return
+        }
+        if (provider?.id == NETLIFY_PROVIDER_ID && netlifyState.isConnected) {
+            netlifySearchRequestId += 1
+            return
+        }
+        if (provider?.id == CLOUDFLARE_PROVIDER_ID && cloudflareState.dashboard != null) {
+            cloudflareSearchRequestId += 1
+            return
+        }
+        if (provider?.id == SEARCH_CONSOLE_PROVIDER_ID) {
+            searchConsoleSearchRequestId += 1
+            return
+        }
+        if (provider == null &&
+            destination == MainDestination.SITES &&
+            searchConsoleState.isConnected
+        ) {
+            destinationId = MainDestination.SITES.id
+            lastWorkspaceId = Workspace.SITES.id
+            preferences.edit { putString(LAST_PRIMARY_WORKSPACE, Workspace.SITES.id) }
+            providerId = SEARCH_CONSOLE_PROVIDER_ID
+            searchConsoleSearchRequestId += 1
+            return
+        }
+
+        val preferredWorkspace = provider?.workspace
+            ?: destination.workspace
             ?: Workspace.entries.firstOrNull { it.id == lastWorkspaceId }
             ?: Workspace.HOSTING
-        val workspace = if (hostingSearchAvailable) Workspace.HOSTING else preferredWorkspace
-        selectDestination(MainDestination.fromWorkspace(workspace))
-        if (workspace == Workspace.HOSTING && hostingSearchAvailable) {
-            hostingSearchRequestId += 1
+        selectDestination(MainDestination.fromWorkspace(preferredWorkspace))
+        when (preferredWorkspace) {
+            Workspace.HOSTING -> hostingSearchRequestId += 1
+            Workspace.REGISTRARS -> registrarSearchRequestId += 1
+            Workspace.SITES -> sitesSearchRequestId += 1
         }
-    }
-
-    LaunchedEffect(connectionState.isSearchAvailable) {
-        hostingSearchAvailable = connectionState.isSearchAvailable
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         hostingRefreshRequestId += 1
         netlifyViewModel.onForeground()
         cloudflareViewModel.onForeground()
+        searchConsoleViewModel.onForeground()
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         netlifyViewModel.onBackground()
         cloudflareViewModel.onBackground()
+        searchConsoleViewModel.onBackground()
     }
 
     BackHandler(
         enabled = provider != null &&
             provider.id != PAGE_SPEED_PROVIDER_ID &&
             provider.id != NETLIFY_PROVIDER_ID &&
-            provider.id != CLOUDFLARE_PROVIDER_ID,
+            provider.id != CLOUDFLARE_PROVIDER_ID &&
+            provider.id != SEARCH_CONSOLE_PROVIDER_ID,
     ) {
-        providerId = null
+        closeProvider()
     }
 
     Scaffold(
@@ -200,19 +256,17 @@ fun VercelticsApp(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (provider == null) {
-                AppNavigationDock(
-                    selectedDestination = destination.navigationDestination,
-                    onDestinationSelected = { selected ->
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        selectDestination(MainDestination.fromNavigation(selected))
-                    },
-                    onSearch = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        requestSearch()
-                    },
-                )
-            }
+            AppNavigationDock(
+                selectedDestination = destination.navigationDestination,
+                onDestinationSelected = { selected ->
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    selectDestination(MainDestination.fromNavigation(selected))
+                },
+                onSearch = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    requestSearch()
+                },
+            )
         },
     ) { contentPadding ->
         Box(
@@ -221,13 +275,7 @@ fun VercelticsApp(
                 .padding(bottom = contentPadding.calculateBottomPadding())
                 .windowInsetsPadding(
                     WindowInsets.safeDrawing.only(
-                        if (provider == null) {
-                            WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                        } else {
-                            WindowInsetsSides.Top +
-                                WindowInsetsSides.Horizontal +
-                                WindowInsetsSides.Bottom
-                        },
+                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
                     ),
                 )
                 .background(MaterialTheme.colorScheme.background),
@@ -236,23 +284,32 @@ fun VercelticsApp(
                 when (provider.id) {
                     PAGE_SPEED_PROVIDER_ID -> PageSpeedRoute(
                         viewModel = pageSpeedViewModel,
-                        onBack = { providerId = null },
+                        onBack = ::closeProvider,
+                        searchRequestId = pageSpeedSearchRequestId,
                         modifier = Modifier.fillMaxSize(),
                     )
                     NETLIFY_PROVIDER_ID -> NetlifyRoute(
                         viewModel = netlifyViewModel,
-                        onBack = { providerId = null },
+                        onBack = ::closeProvider,
+                        searchRequestId = netlifySearchRequestId,
                         modifier = Modifier.fillMaxSize(),
                     )
                     CLOUDFLARE_PROVIDER_ID -> CloudflareRoute(
                         viewModel = cloudflareViewModel,
-                        onBack = { providerId = null },
+                        onBack = ::closeProvider,
+                        searchRequestId = cloudflareSearchRequestId,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    SEARCH_CONSOLE_PROVIDER_ID -> SearchConsoleRoute(
+                        viewModel = searchConsoleViewModel,
+                        onBack = ::closeProvider,
+                        searchRequestId = searchConsoleSearchRequestId,
                         modifier = Modifier.fillMaxSize(),
                     )
                     else -> ProviderDetailScreen(
                         provider = provider,
                         vercelConnectionViewModel = vercelConnectionViewModel,
-                        onBack = { providerId = null },
+                        onBack = ::closeProvider,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -264,7 +321,6 @@ fun VercelticsApp(
                             searchRequestId = hostingSearchRequestId,
                             refreshRequestId = hostingRefreshRequestId,
                             onConnectProvider = { providerId = it.id },
-                            onSearchAvailabilityChanged = { hostingSearchAvailable = it },
                             connectedProviderContent = if (
                                 netlifyState.isConnected || cloudflareState.isConnected
                             ) {
@@ -322,6 +378,7 @@ fun VercelticsApp(
                             workspace = Workspace.REGISTRARS,
                             onConnectProvider = { providerId = it.id },
                             onAccountAction = {},
+                            searchRequestId = registrarSearchRequestId,
                             modifier = Modifier.fillMaxSize(),
                         )
 
@@ -329,14 +386,31 @@ fun VercelticsApp(
                             workspace = Workspace.SITES,
                             onConnectProvider = { providerId = it.id },
                             onAccountAction = {},
+                            searchRequestId = sitesSearchRequestId,
+                            connectedProviderIds = connectedSiteProviderIds,
                             modifier = Modifier.fillMaxSize(),
-                            connectedContent = if (pageSpeedState.isConnected) {
+                            connectedContent = if (
+                                pageSpeedState.isConnected || searchConsoleState.isConnected
+                            ) {
                                 {
-                                    PageSpeedConnectionCard(
-                                        state = pageSpeedState,
-                                        onClick = { providerId = PAGE_SPEED_PROVIDER_ID },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        if (searchConsoleState.isConnected) {
+                                            SearchConsoleConnectionCard(
+                                                state = searchConsoleState,
+                                                onClick = {
+                                                    providerId = SEARCH_CONSOLE_PROVIDER_ID
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                        if (pageSpeedState.isConnected) {
+                                            PageSpeedConnectionCard(
+                                                state = pageSpeedState,
+                                                onClick = { providerId = PAGE_SPEED_PROVIDER_ID },
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                    }
                                 }
                             } else {
                                 null
@@ -367,26 +441,19 @@ private fun PageSpeedConnectionCard(
     val subtitle = state.dashboard?.siteUrl
         ?: state.savedSiteUrl
         ?: state.error
-        ?: "Saved connection"
-    val status = when (state.status) {
-        PageSpeedConnectionStatus.CONNECTED -> when (state.dashboard?.cacheState) {
-            PageSpeedCacheState.LIVE -> "Live"
-            PageSpeedCacheState.CACHED_FRESH -> "Saved"
-            PageSpeedCacheState.CACHED_STALE -> "Stale"
-            null -> "Saved"
+        ?: when (state.status) {
+            PageSpeedConnectionStatus.DISCONNECTED -> "Not connected"
+            PageSpeedConnectionStatus.RESTORING -> "Checking saved connection"
+            else -> "Saved connection"
         }
-        PageSpeedConnectionStatus.SAVED_UNAVAILABLE -> "Attention"
-        PageSpeedConnectionStatus.RESTORING -> "Restoring"
-        PageSpeedConnectionStatus.DISCONNECTED -> "Disconnected"
-    }
-    val statusColor = if (state.status == PageSpeedConnectionStatus.SAVED_UNAVAILABLE) {
-        MaterialTheme.colorScheme.error
-    } else {
-        accent
-    }
+    val status = pageSpeedConnectionCardStatus(state)
+    val statusColor = if (status == "Attention") PageSpeedAttention else accent
+    val stacked = shouldStackPageSpeedConnectionCard(LocalDensity.current.fontScale)
 
     OffsetPanel(
-        modifier = modifier.heightIn(min = 88.dp),
+        modifier = modifier
+            .heightIn(min = 88.dp)
+            .semantics { stateDescription = status },
         color = MaterialTheme.colorScheme.surface,
         borderColor = accent,
         shadowColor = accent,
@@ -396,37 +463,107 @@ private fun PageSpeedConnectionCard(
         },
         testTag = "workspace.sites.pageSpeedConnection",
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ProviderMark(provider = provider, size = 46.dp)
-            Spacer(Modifier.width(13.dp))
+        if (stacked) {
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = provider.displayName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
-                Text(
-                    text = subtitle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProviderMark(provider = provider, size = 46.dp)
+                    Spacer(Modifier.width(13.dp))
+                    PageSpeedConnectionCopy(
+                        title = provider.displayName,
+                        subtitle = subtitle,
+                        subtitleMaxLines = 2,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    StatusPill(text = status, color = statusColor)
+                }
             }
-            Spacer(Modifier.width(10.dp))
-            StatusPill(text = status, color = statusColor)
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ProviderMark(provider = provider, size = 46.dp)
+                Spacer(Modifier.width(13.dp))
+                PageSpeedConnectionCopy(
+                    title = provider.displayName,
+                    subtitle = subtitle,
+                    subtitleMaxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(10.dp))
+                StatusPill(text = status, color = statusColor)
+            }
         }
     }
 }
+
+@Composable
+private fun PageSpeedConnectionCopy(
+    title: String,
+    subtitle: String,
+    subtitleMaxLines: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = if (subtitleMaxLines > 1) 2 else 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = subtitle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = subtitleMaxLines,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+internal fun pageSpeedConnectionCardStatus(state: PageSpeedUiState): String = when (state.status) {
+    PageSpeedConnectionStatus.CONNECTED -> if (
+        state.error != null ||
+        state.dashboard == null ||
+        state.dashboard.isPartial ||
+        state.dashboard.warnings.isNotEmpty() ||
+        state.dashboard.cacheState == PageSpeedCacheState.CACHED_STALE
+    ) {
+        "Attention"
+    } else {
+        when (state.dashboard.cacheState) {
+            PageSpeedCacheState.LIVE -> "Live"
+            PageSpeedCacheState.CACHED_FRESH -> "Saved"
+            PageSpeedCacheState.CACHED_STALE -> "Attention"
+        }
+    }
+    PageSpeedConnectionStatus.SAVED_UNAVAILABLE -> "Attention"
+    PageSpeedConnectionStatus.RESTORING -> "Restoring"
+    PageSpeedConnectionStatus.DISCONNECTED -> "Disconnected"
+}
+
+internal fun shouldStackPageSpeedConnectionCard(fontScale: Float): Boolean = fontScale >= 1.3f
+
+private val PageSpeedAttention = Color(0xFFE29A00)
 
 private fun defaultAboutScreenState() = AboutScreenState(
     version = currentAndroidAppVersion(),

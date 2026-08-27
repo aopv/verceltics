@@ -26,6 +26,10 @@ import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedGatewayController
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedScenario
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedUiGateway
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
+import com.apoorvdarshan.verceltics.ui.searchconsole.DebugSearchConsoleGatewayController
+import com.apoorvdarshan.verceltics.ui.searchconsole.DebugSearchConsoleScenario
+import com.apoorvdarshan.verceltics.ui.searchconsole.DebugSearchConsoleUiGateway
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleViewModel
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.combine
@@ -46,6 +50,9 @@ class VercelticsTestActivity : ComponentActivity() {
     private val cloudflareViewModel by viewModels<CloudflareViewModel> {
         CloudflareViewModel.Factory(DebugCloudflareUiGateway())
     }
+    private val searchConsoleViewModel by viewModels<SearchConsoleViewModel> {
+        SearchConsoleViewModel.Factory(DebugSearchConsoleUiGateway())
+    }
     private var ownsProviderSecureFlag = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,9 +62,15 @@ class VercelticsTestActivity : ComponentActivity() {
         intent.getStringExtra(EXTRA_NETLIFY_SCENARIO)
             ?.let { runCatching { DebugNetlifyScenario.valueOf(it) }.getOrNull() }
             ?.let { DebugNetlifyGatewayController.configure(it) }
+        intent.getStringExtra(EXTRA_PAGE_SPEED_SCENARIO)
+            ?.let { runCatching { DebugPageSpeedScenario.valueOf(it) }.getOrNull() }
+            ?.let { DebugPageSpeedGatewayController.configure(it) }
         intent.getStringExtra(EXTRA_CLOUDFLARE_SCENARIO)
             ?.let { runCatching { DebugCloudflareScenario.valueOf(it) }.getOrNull() }
             ?.let { DebugCloudflareGatewayController.configure(it) }
+        intent.getStringExtra(EXTRA_SEARCH_CONSOLE_SCENARIO)
+            ?.let { runCatching { DebugSearchConsoleScenario.valueOf(it) }.getOrNull() }
+            ?.let { DebugSearchConsoleGatewayController.configure(it) }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         lifecycleScope.launch {
@@ -65,8 +78,9 @@ class VercelticsTestActivity : ComponentActivity() {
                 combine(
                     netlifyViewModel.uiState.map { it.requiresSecureWindow },
                     cloudflareViewModel.uiState.map { it.requiresSecureWindow },
-                ) { netlifyRequired, cloudflareRequired ->
-                    netlifyRequired || cloudflareRequired
+                    searchConsoleViewModel.uiState.map { it.requiresSecureWindow },
+                ) { netlifyRequired, cloudflareRequired, searchConsoleRequired ->
+                    netlifyRequired || cloudflareRequired || searchConsoleRequired
                 }
                     .distinctUntilChanged()
                     .collect { required ->
@@ -88,6 +102,7 @@ class VercelticsTestActivity : ComponentActivity() {
                     pageSpeedViewModel = pageSpeedViewModel,
                     netlifyViewModel = netlifyViewModel,
                     cloudflareViewModel = cloudflareViewModel,
+                    searchConsoleViewModel = searchConsoleViewModel,
                 )
             }
         }
@@ -137,9 +152,23 @@ class VercelticsTestActivity : ComponentActivity() {
         DebugCloudflareGatewayController.releaseConnect()
     }
 
+    fun configureSearchConsoleGateway(
+        scenario: DebugSearchConsoleScenario,
+        blockConnect: Boolean = false,
+    ) {
+        DebugSearchConsoleGatewayController.configure(scenario, blockConnect)
+        searchConsoleViewModel.restore()
+    }
+
+    fun releaseSearchConsoleConnect() {
+        DebugSearchConsoleGatewayController.releaseConnect()
+    }
+
     companion object {
         const val EXTRA_VERCEL_SCENARIO = "vercelScenario"
         const val EXTRA_NETLIFY_SCENARIO = "netlifyScenario"
+        const val EXTRA_PAGE_SPEED_SCENARIO = "pageSpeedScenario"
         const val EXTRA_CLOUDFLARE_SCENARIO = "cloudflareScenario"
+        const val EXTRA_SEARCH_CONSOLE_SCENARIO = "searchConsoleScenario"
     }
 }

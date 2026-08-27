@@ -104,12 +104,34 @@ class CloudflareViewModelTest {
         assertEquals("worker-primary", recreated.uiState.value.selectedResource?.id)
     }
 
+    @Test
+    fun rejectedRefreshPersistenceKeepsPreviouslyDisplayedDashboard() = runTest(dispatcher) {
+        val cached = dashboard(cacheState = CloudflareCacheState.CACHED_FRESH)
+        val gateway = FakeGateway(CloudflareRestoreUi.Available(cached)).apply {
+            refreshFailure = CloudflareUiException(
+                "The saved Cloudflare connection changed while refreshing. Reopen it and try again.",
+            )
+        }
+        val viewModel = CloudflareViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(cached, viewModel.uiState.value.dashboard)
+        assertEquals(
+            "The saved Cloudflare connection changed while refreshing. Reopen it and try again.",
+            viewModel.uiState.value.error,
+        )
+    }
+
     private class FakeGateway(
         private val restored: CloudflareRestoreUi,
     ) : CloudflareUiGateway {
         var refreshCalls = 0
         var lastPreferredAccountId: String? = null
         var lastToken: SecretValue? = null
+        var refreshFailure: Throwable? = null
 
         override suspend fun restore(): Result<CloudflareRestoreUi> = Result.success(restored)
 
@@ -121,6 +143,7 @@ class CloudflareViewModelTest {
         override suspend fun refresh(preferredAccountId: String?): Result<CloudflareDashboardUi> {
             refreshCalls += 1
             lastPreferredAccountId = preferredAccountId
+            refreshFailure?.let { return Result.failure(it) }
             return Result.success(dashboard(preferredAccountId ?: "account-primary"))
         }
 

@@ -3,6 +3,30 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val googleOAuthClientId = providers.gradleProperty("VERCELTICS_GOOGLE_OAUTH_CLIENT_ID")
+    .orNull
+    ?.trim()
+    .orEmpty()
+val configuredGoogleOAuthRedirectScheme = providers.gradleProperty("VERCELTICS_GOOGLE_OAUTH_REDIRECT_SCHEME")
+    .orNull
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
+val derivedGoogleOAuthRedirectScheme = googleOAuthClientId
+    .takeIf { it.endsWith(".apps.googleusercontent.com") }
+    ?.removeSuffix(".apps.googleusercontent.com")
+    ?.takeIf(String::isNotEmpty)
+    ?.let { "com.googleusercontent.apps.$it" }
+if (configuredGoogleOAuthRedirectScheme != null &&
+    configuredGoogleOAuthRedirectScheme != derivedGoogleOAuthRedirectScheme
+) {
+    throw GradleException("VERCELTICS_GOOGLE_OAUTH_REDIRECT_SCHEME must be the reverse Google client id.")
+}
+val googleOAuthRedirectScheme = derivedGoogleOAuthRedirectScheme
+    ?: "verceltics-oauth-unconfigured"
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "com.apoorvdarshan.verceltics"
     compileSdk = 37
@@ -16,6 +40,17 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField(
+            "String",
+            "GOOGLE_OAUTH_CLIENT_ID",
+            googleOAuthClientId.asBuildConfigString(),
+        )
+        buildConfigField(
+            "String",
+            "GOOGLE_OAUTH_REDIRECT_SCHEME",
+            googleOAuthRedirectScheme.asBuildConfigString(),
+        )
+        manifestPlaceholders["googleOAuthRedirectScheme"] = googleOAuthRedirectScheme
     }
 
     buildTypes {

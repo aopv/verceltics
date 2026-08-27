@@ -103,6 +103,20 @@ data class SearchConsoleDimensionFilter(
     val expression: String,
 )
 
+data class SearchConsoleGoogleIdentity(
+    val subject: String,
+    val email: String?,
+) {
+    init {
+        require(subject.isNotBlank() && subject.length <= MAX_ID_CHARACTERS) {
+            "Invalid Google subject."
+        }
+        require(email == null || email.isNotBlank() && email.length <= MAX_EMAIL_CHARACTERS) {
+            "Invalid Google email."
+        }
+    }
+}
+
 data class SearchConsoleDimensionFilterGroup(
     val filters: List<SearchConsoleDimensionFilter>,
 )

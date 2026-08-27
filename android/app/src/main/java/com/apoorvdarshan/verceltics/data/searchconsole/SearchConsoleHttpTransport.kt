@@ -22,6 +22,7 @@ internal enum class SearchConsoleGoogleOrigin(val baseUrl: String) {
     WEBMASTERS("https://www.googleapis.com/"),
     INSPECTION("https://searchconsole.googleapis.com/"),
     OAUTH_TOKEN("https://oauth2.googleapis.com/"),
+    OPENID("https://openidconnect.googleapis.com/"),
 }
 
 internal class SearchConsoleHttpRequest(
@@ -49,7 +50,7 @@ internal interface SearchConsoleHttpTransport {
     fun newCall(request: SearchConsoleHttpRequest): CancelableCall<HttpResponse>
 }
 
-/** Bounded cancellable HTTPS transport restricted to three exact Google origins. */
+/** Bounded cancellable HTTPS transport restricted to four exact Google origins. */
 internal class SecureSearchConsoleHttpTransport(
     private val connectTimeoutMillis: Int = 15_000,
     private val readTimeoutMillis: Int = 30_000,

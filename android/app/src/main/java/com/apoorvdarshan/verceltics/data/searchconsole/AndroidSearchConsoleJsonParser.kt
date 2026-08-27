@@ -27,6 +27,7 @@ internal interface SearchConsoleJsonParser {
     fun parseSitemap(bytes: ByteArray): SearchConsoleSitemap
     fun parseInspection(bytes: ByteArray): SearchConsoleUrlInspectionResult
     fun parseTokenResponse(bytes: ByteArray): SearchConsoleTokenResponse
+    fun parseIdentity(bytes: ByteArray): SearchConsoleGoogleIdentity
     fun parseErrorReason(bytes: ByteArray): String?
 }
 
@@ -142,6 +143,23 @@ internal class AndroidSearchConsoleJsonParser : SearchConsoleJsonParser {
             scopes,
             expiresIn?.takeIf { it in 1..MAX_TOKEN_LIFETIME_SECONDS }
                 ?: throw SearchConsoleResponseFormatException("Google returned an invalid token lifetime."),
+        )
+    }
+
+    override fun parseIdentity(bytes: ByteArray): SearchConsoleGoogleIdentity = parse(bytes) { reader ->
+        var subject: String? = null
+        var email: String? = null
+        reader.readObject { name ->
+            when (name) {
+                "sub" -> subject = reader.optionalString(MAX_ID_CHARACTERS)
+                "email" -> email = reader.optionalString(MAX_EMAIL_CHARACTERS)
+                else -> reader.skipValue()
+            }
+        }
+        SearchConsoleGoogleIdentity(
+            subject = subject?.takeIf(String::isNotBlank)
+                ?: throw SearchConsoleResponseFormatException("Google omitted the account identity."),
+            email = email?.takeIf(String::isNotBlank),
         )
     }
 

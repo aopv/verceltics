@@ -5,7 +5,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +34,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -57,6 +62,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -93,7 +100,6 @@ fun VercelWorkspaceScreen(
     searchRequestId: Int,
     refreshRequestId: Int,
     onConnectProvider: (IntegrationProvider) -> Unit,
-    onSearchAvailabilityChanged: (Boolean) -> Unit,
     connectedProviderContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -102,6 +108,7 @@ fun VercelWorkspaceScreen(
     var selectedProjectId by rememberSaveable { mutableStateOf<String?>(null) }
     var lastHandledRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var unavailableSearchNotice by rememberSaveable { mutableStateOf<String?>(null) }
     val searchFocusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -112,25 +119,25 @@ fun VercelWorkspaceScreen(
         }
     }
 
-    LaunchedEffect(state.isSearchAvailable) {
-        onSearchAvailabilityChanged(state.isSearchAvailable)
-    }
-
-    LaunchedEffect(searchRequestId, state.isSearchAvailable) {
-        if (
-            state.isSearchAvailable &&
-            searchRequestId > 0 &&
-            searchRequestId != lastHandledSearchRequestId
+    LaunchedEffect(searchRequestId, state.status, state.isSearchAvailable) {
+        if (state.status != VercelConnectionStatus.RESTORING &&
+            searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId
         ) {
             lastHandledSearchRequestId = searchRequestId
-            withFrameNanos { }
-            if (selectedProjectId != null) {
-                selectedProjectId = null
+            if (state.isSearchAvailable) {
+                unavailableSearchNotice = null
                 withFrameNanos { }
+                if (selectedProjectId != null) {
+                    selectedProjectId = null
+                    withFrameNanos { }
+                }
+                searchFocusRequester.requestFocus()
+                withFrameNanos { }
+                keyboard?.show()
+            } else if (state.status == VercelConnectionStatus.SAVED_UNAVAILABLE) {
+                unavailableSearchNotice =
+                    "Project search is unavailable while the saved Vercel dashboard is offline. Retry the connection first."
             }
-            searchFocusRequester.requestFocus()
-            withFrameNanos { }
-            keyboard?.show()
         }
     }
 
@@ -175,6 +182,7 @@ fun VercelWorkspaceScreen(
         state.status == VercelConnectionStatus.SAVED_UNAVAILABLE -> SavedVercelUnavailableWorkspace(
             account = state.savedAccount,
             error = state.error ?: "The saved Vercel account could not be loaded.",
+            searchNotice = unavailableSearchNotice,
             isRefreshing = state.isBusy,
             onRetry = vercelConnectionViewModel::refresh,
             onDisconnect = {
@@ -191,6 +199,7 @@ fun VercelWorkspaceScreen(
             onAccountAction = {},
             persistenceError = state.error,
             connectedContent = connectedProviderContent,
+            searchRequestId = searchRequestId,
             modifier = modifier,
         )
 
@@ -229,6 +238,7 @@ fun VercelWorkspaceScreen(
 private fun SavedVercelUnavailableWorkspace(
     account: VercelAccountUi?,
     error: String,
+    searchNotice: String?,
     isRefreshing: Boolean,
     onRetry: () -> Unit,
     onDisconnect: () -> Unit,
@@ -282,6 +292,7 @@ private fun SavedVercelUnavailableWorkspace(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     HostingFeedbackBanner(error)
+                    searchNotice?.let { message -> HostingWarningBanner(message) }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ThemedActionButton(
                             text = if (isRefreshing) "RETRYING…" else "RETRY",
@@ -422,33 +433,93 @@ private fun ConnectedVercelWorkspace(
                 DropdownMenu(
                     expanded = accountMenuExpanded,
                     onDismissRequest = { accountMenuExpanded = false },
+                    modifier = Modifier
+                        .widthIn(min = 280.dp, max = 340.dp)
+                        .testTag("workspace.hosting.accountMenu"),
                     containerColor = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.medium,
+                    shape = RoundedCornerShape(4.dp),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 12.dp,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
                 ) {
                     DropdownMenuItem(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 54.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                            .semantics {
+                                selected = true
+                                stateDescription = "Connected account"
+                            },
                         text = {
                             Column {
                                 Text(dashboard.account.displayName, fontWeight = FontWeight.Bold)
                                 dashboard.account.email?.let {
-                                    Text(it, style = MaterialTheme.typography.bodySmall)
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             }
                         },
-                        leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
-                        onClick = { accountMenuExpanded = false },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                            )
+                        },
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.tertiary,
+                        ),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            accountMenuExpanded = false
+                        },
                     )
                     DropdownMenuItem(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 52.dp),
                         text = { Text("Manage connection") },
-                        leadingIcon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Rounded.AddCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.primary,
+                        ),
                         onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             accountMenuExpanded = false
                             onManageConnection()
                         },
                     )
                     DropdownMenuItem(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 52.dp)
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f)),
                         text = { Text("Remove current account") },
-                        leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Rounded.DeleteOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.error,
+                            leadingIconColor = MaterialTheme.colorScheme.error,
+                        ),
                         onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             accountMenuExpanded = false
                             showDisconnectConfirmation = true
                         },
@@ -533,34 +604,45 @@ private fun ConnectedVercelWorkspace(
                     color = MaterialTheme.colorScheme.primary,
                     testTag = "workspace.hosting.summary",
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = dashboard.account.displayName,
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            dashboard.account.email?.let {
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        val useStackedLayout = shouldUseStackedVercelLayout(
+                            availableWidthDp = maxWidth.value,
+                            fontScale = LocalDensity.current.fontScale,
+                        )
+                        if (useStackedLayout) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                VercelAccountSummaryText(
+                                    account = dashboard.account,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                StatusPill(
+                                    text = "Connected",
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                VercelAccountSummaryText(
+                                    account = dashboard.account,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                StatusPill(
+                                    text = "Connected",
+                                    color = MaterialTheme.colorScheme.tertiary,
                                 )
                             }
                         }
-                        StatusPill(
-                            text = "Connected",
-                            color = MaterialTheme.colorScheme.tertiary,
-                        )
                     }
                 }
             }
@@ -618,19 +700,38 @@ private fun ConnectedVercelWorkspace(
             }
 
             item(key = "heading") {
-                Row(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .semantics { heading() },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Projects", style = MaterialTheme.typography.headlineMedium)
-                    Text(
-                        "${visibleProjects.size}/${dashboard.projects.size}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    val useStackedLayout = shouldUseStackedVercelLayout(
+                        availableWidthDp = maxWidth.value,
+                        fontScale = LocalDensity.current.fontScale,
                     )
+                    if (useStackedLayout) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Projects", style = MaterialTheme.typography.headlineMedium)
+                            Text(
+                                "${visibleProjects.size} shown · ${dashboard.projects.size} total",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Projects", style = MaterialTheme.typography.headlineMedium)
+                            Text(
+                                "${visibleProjects.size}/${dashboard.projects.size}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
 
@@ -678,58 +779,135 @@ private fun VercelWorkspaceProjectRow(
         },
         testTag = "workspace.hosting.project.${project.id}",
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                modifier = Modifier.size(42.dp),
-                color = MaterialTheme.colorScheme.onSurface,
-                contentColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(3.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                tonalElevation = 0.dp,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    IntegrationCatalog.provider("vercel")?.let { provider ->
-                        ProviderLogo(
-                            provider = provider,
-                            modifier = Modifier.padding(10.dp),
-                            tint = MaterialTheme.colorScheme.primary,
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val useStackedLayout = shouldUseStackedVercelLayout(
+                availableWidthDp = maxWidth.value,
+                fontScale = LocalDensity.current.fontScale,
+            )
+            if (useStackedLayout) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        VercelProjectMark()
+                        Text(
+                            text = project.name,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        VercelProjectOpenIcon(project.name)
+                    }
+                    Text(
+                        text = projectMetadata(project),
+                        modifier = Modifier.padding(start = 54.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    VercelProjectMark()
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = project.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = projectMetadata(project),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    VercelProjectOpenIcon(project.name)
                 }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = project.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = listOfNotNull(
-                        project.framework,
-                        project.updatedAtMillis?.let(::formatProjectDate),
-                    ).joinToString(" · ").ifBlank { "Project ${project.id.take(8)}" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                contentDescription = "Open ${project.name} analytics",
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        }
+    }
+}
+
+@Composable
+private fun VercelAccountSummaryText(
+    account: VercelAccountUi,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier) {
+        Text(
+            text = account.displayName,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        account.email?.let { email ->
+            Text(
+                text = email,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
+
+@Composable
+private fun VercelProjectMark() {
+    Surface(
+        modifier = Modifier.size(42.dp),
+        color = MaterialTheme.colorScheme.onSurface,
+        contentColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(3.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        tonalElevation = 0.dp,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            IntegrationCatalog.provider("vercel")?.let { provider ->
+                ProviderLogo(
+                    provider = provider,
+                    modifier = Modifier.padding(10.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VercelProjectOpenIcon(projectName: String) {
+    Icon(
+        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+        contentDescription = "Open $projectName analytics",
+        modifier = Modifier.size(24.dp),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun projectMetadata(project: VercelProjectUi): String =
+    listOfNotNull(
+        project.framework,
+        project.updatedAtMillis?.let(::formatProjectDate),
+    ).joinToString(" · ").ifBlank { "Project ${project.id.take(8)}" }
 
 @Composable
 private fun HostingFeedbackBanner(message: String) {
@@ -803,6 +981,12 @@ private fun HostingLoadingScreen(modifier: Modifier = Modifier) {
 
 private fun formatProjectDate(timestamp: Long): String =
     DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestamp))
+
+/** Keeps identity, project, and data rows readable on narrow windows and at larger font scales. */
+internal fun shouldUseStackedVercelLayout(
+    availableWidthDp: Float,
+    fontScale: Float,
+): Boolean = availableWidthDp < 344f || fontScale >= 1.30f
 
 internal fun shouldClearSavedProjectSelection(
     status: VercelConnectionStatus,

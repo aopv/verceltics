@@ -128,6 +128,69 @@ class SearchConsoleApiTest {
     }
 
     @Test
+    fun authorizationCodeExchangeUsesPkceThenLoadsIdentityFromFixedOpenIdOrigin() {
+        val code = "authorization-code-never-print"
+        val verifier = "pkce-verifier-never-print"
+        val transport = RecordingTransport()
+        val parser = FakeParser(
+            token = SearchConsoleTokenResponse(
+                SecretValue.of("new-access"),
+                SecretValue.of("durable-refresh"),
+                "Bearer",
+                SearchConsoleOAuthCredential.REQUIRED_SCOPES,
+                3_600,
+            ),
+            identity = SearchConsoleGoogleIdentity("google-subject", "owner@example.com"),
+        )
+        val api = SearchConsoleApi(transport, parser, nowMillis = { 1_000L })
+
+        val credential = api.newExchangeAuthorizationCodeCall(
+            authorizationCode = SecretValue.of(code),
+            codeVerifier = SecretValue.of(verifier),
+            clientId = "client.apps.googleusercontent.com",
+            redirectUri = "com.googleusercontent.apps.client:/oauthredirect",
+            requestedScopes = SearchConsoleOAuthCredential.REQUIRED_SCOPES,
+        ).execute()
+
+        assertEquals(SearchConsoleGoogleOrigin.OAUTH_TOKEN, transport.lastRequest?.origin)
+        assertTrue(checkNotNull(transport.lastBodyText).contains("code_verifier=$verifier"))
+        assertFalse(checkNotNull(transport.lastRequest).toString().contains(code))
+        assertFalse(credential.toString().contains("durable-refresh"))
+
+        val identity = api.newIdentityCall(credential).execute()
+        assertEquals(SearchConsoleGoogleOrigin.OPENID, transport.lastRequest?.origin)
+        assertEquals(listOf("v1", "userinfo"), transport.lastRequest?.pathSegments)
+        assertEquals("google-subject", identity.subject)
+        assertEquals("owner@example.com", identity.email)
+    }
+
+    @Test
+    fun authorizationCodeExchangeRejectsMissingOfflineToken() {
+        val api = SearchConsoleApi(
+            RecordingTransport(),
+            FakeParser(
+                token = SearchConsoleTokenResponse(
+                    SecretValue.of("new-access"), null, "Bearer",
+                    SearchConsoleOAuthCredential.REQUIRED_SCOPES, 3_600,
+                ),
+            ),
+            nowMillis = { 1_000L },
+        )
+
+        val error = assertThrows(SearchConsoleApiException::class.java) {
+            api.newExchangeAuthorizationCodeCall(
+                SecretValue.of("code"),
+                SecretValue.of("verifier"),
+                "client.apps.googleusercontent.com",
+                "com.googleusercontent.apps.client:/oauthredirect",
+                SearchConsoleOAuthCredential.REQUIRED_SCOPES,
+            ).execute()
+        }
+
+        assertEquals(SearchConsoleFailureKind.CONFIGURATION, error.failure.kind)
+    }
+
+    @Test
     fun expiredOrUnderScopedCredentialFailsBeforeTransport() {
         val transport = RecordingTransport()
         val api = SearchConsoleApi(transport, FakeParser(), nowMillis = { 10_000L })
@@ -215,6 +278,8 @@ class SearchConsoleApiTest {
         private val token: SearchConsoleTokenResponse = SearchConsoleTokenResponse(
             SecretValue.of("new-access"), null, "Bearer", null, 3_600,
         ),
+        private val identity: SearchConsoleGoogleIdentity =
+            SearchConsoleGoogleIdentity("subject", "apoorv@example.com"),
         private val throwOnError: Boolean = false,
     ) : SearchConsoleJsonParser {
         override fun parseProperties(bytes: ByteArray) = properties
@@ -227,6 +292,7 @@ class SearchConsoleApiTest {
             null, null, null, null, null,
         )
         override fun parseTokenResponse(bytes: ByteArray) = token
+        override fun parseIdentity(bytes: ByteArray) = identity
         override fun parseErrorReason(bytes: ByteArray): String? {
             if (throwOnError) throw SearchConsoleResponseFormatException("malformed")
             return null

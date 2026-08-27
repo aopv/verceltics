@@ -2,6 +2,7 @@ package com.apoorvdarshan.verceltics.ui.netlify
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -9,6 +10,10 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import org.junit.Rule
 import org.junit.Test
@@ -96,6 +101,38 @@ class NetlifyScreenTest {
         siteDetail.performScrollToNode(hasText("Build history is unavailable."))
         composeRule.onNodeWithText("Build history is unavailable.")
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun searchRequestFocusesAndFiltersTheSiteList() {
+        var searchRequestId by mutableIntStateOf(0)
+        composeRule.setContent {
+            VercelticsTheme {
+                NetlifyScreen(
+                    state = NetlifyUiState(
+                        status = NetlifyConnectionStatus.CONNECTED,
+                        dashboard = DASHBOARD,
+                        savedAccount = DASHBOARD.account,
+                        operation = null,
+                    ),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onOpenSite = {},
+                    onRefreshSite = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    searchFocusRequestId = searchRequestId,
+                )
+            }
+        }
+
+        composeRule.runOnIdle { searchRequestId += 1 }
+        composeRule.onNodeWithTag("netlify.search").assertIsFocused()
+        composeRule.onNodeWithTag("netlify.search").performTextInput("missing")
+        composeRule.onNodeWithText("No Netlify sites match “missing”.").assertIsDisplayed()
     }
 
     @Test

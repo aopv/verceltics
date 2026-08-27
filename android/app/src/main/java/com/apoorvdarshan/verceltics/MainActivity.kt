@@ -22,6 +22,7 @@ import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenController
 import com.apoorvdarshan.verceltics.ui.screens.about.SharedPreferencesAppearancePreferenceStore
 import com.apoorvdarshan.verceltics.ui.screens.about.UnconfiguredAboutUpdateChecker
 import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleViewModel
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -50,6 +51,11 @@ class MainActivity : ComponentActivity() {
     private val cloudflareViewModel by viewModels<CloudflareViewModel> {
         CloudflareViewModel.Factory(cloudflareGateway)
     }
+    private val searchConsoleGateway
+        get() = (application as VercelticsApplication).searchConsoleGateway
+    private val searchConsoleViewModel by viewModels<SearchConsoleViewModel> {
+        SearchConsoleViewModel.Factory(searchConsoleGateway)
+    }
     private var ownsProviderSecureFlag = false
     private val aboutController by lazy(LazyThreadSafetyMode.NONE) {
         AboutScreenController(
@@ -72,6 +78,7 @@ class MainActivity : ComponentActivity() {
                     pageSpeedViewModel = pageSpeedViewModel,
                     netlifyViewModel = netlifyViewModel,
                     cloudflareViewModel = cloudflareViewModel,
+                    searchConsoleViewModel = searchConsoleViewModel,
                     aboutState = aboutState,
                     onAboutAction = { dispatchAboutAction(it, aboutScope) },
                 )
@@ -85,8 +92,9 @@ class MainActivity : ComponentActivity() {
                 combine(
                     netlifyViewModel.uiState.map { it.requiresSecureWindow },
                     cloudflareViewModel.uiState.map { it.requiresSecureWindow },
-                ) { netlifyRequired, cloudflareRequired ->
-                    netlifyRequired || cloudflareRequired
+                    searchConsoleViewModel.uiState.map { it.requiresSecureWindow },
+                ) { netlifyRequired, cloudflareRequired, searchConsoleRequired ->
+                    netlifyRequired || cloudflareRequired || searchConsoleRequired
                 }
                     .distinctUntilChanged()
                     .collect(::setProviderCredentialProtection)

@@ -105,7 +105,12 @@ class SearchConsoleConnectionRepositoryTest {
         val partial = SearchConsoleSnapshot(
             listOf(property(0)), 700L, false, listOf("Property list is incomplete."),
         )
-        assertFalse(store.persistSnapshotRefresh(SearchConsoleFetchResult.Partial(partial, failure())))
+        assertFalse(
+            store.persistSnapshotRefresh(
+                checkNotNull(store.loadForRefresh()),
+                SearchConsoleFetchResult.Partial(partial, failure()),
+            ),
+        )
         assertEquals(complete, repository.load()?.cachedSnapshot)
     }
 
@@ -219,6 +224,7 @@ class SearchConsoleConnectionRepositoryTest {
 
         assertTrue(
             store.persistSnapshotRefresh(
+                checkNotNull(store.loadForRefresh()),
                 SearchConsoleFetchResult.Partial(candidate, failure()),
             ),
         )
@@ -230,13 +236,42 @@ class SearchConsoleConnectionRepositoryTest {
         assertEquals(2, cached.warnings.size)
     }
 
-    private fun credential(access: String, refresh: String?) = SearchConsoleOAuthCredential(
+    @Test
+    fun snapshotRefreshCannotCrossIntoReplacementAccount() {
+        val repository = SearchConsoleConnectionRepository(MemoryStore(), TestCipher())
+        val store = SearchConsoleConnectionStore(repository, nowMillis = { 950L })
+        repository.save(connection("account-a-access", "refresh-a", snapshot()))
+        val accountA = checkNotNull(store.loadForRefresh())
+        val accountB = SearchConsoleStoredConnection(
+            "subject-2",
+            credential("account-b-access", "refresh-b", subject = "subject-2"),
+            20L,
+            900L,
+            snapshot(2),
+        )
+        repository.save(accountB)
+
+        assertFalse(
+            store.persistSnapshotRefresh(
+                accountA,
+                SearchConsoleFetchResult.Complete(snapshot(4).copy(fetchedAtMillis = 950L)),
+            ),
+        )
+        assertEquals("subject-2", repository.load()?.id)
+        assertEquals(2, repository.load()?.cachedSnapshot?.properties?.size)
+    }
+
+    private fun credential(
+        access: String,
+        refresh: String?,
+        subject: String = "subject-1",
+    ) = SearchConsoleOAuthCredential(
         SecretValue.of(access),
         refresh?.let(SecretValue::of),
         "Bearer",
         SearchConsoleOAuthCredential.REQUIRED_SCOPES,
         1_000_000L,
-        "subject-1",
+        subject,
         "apoorv@example.com",
     )
 

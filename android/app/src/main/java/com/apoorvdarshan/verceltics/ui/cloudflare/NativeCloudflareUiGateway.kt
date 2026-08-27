@@ -107,11 +107,18 @@ class NativeCloudflareUiGateway internal constructor(
         val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
             ?: throw CloudflareUiException("Connect a Cloudflare account first.")
         val result = dataSource.newDashboardCall(
-            token = saved.account.apiToken,
+            token = saved.connection.account.apiToken,
             preferredAccountId = preferredAccountId,
         ).executeAwait(networkExecutor)
         val snapshot = result.snapshotOrThrow()
-        executeAwait(storageExecutor) { connectionStore.persistRefreshResult(result) }
+        val persisted = executeAwait(storageExecutor) {
+            connectionStore.persistRefreshResult(saved, result)
+        }
+        if (!persisted) {
+            throw CloudflareUiException(
+                "The saved Cloudflare connection changed while refreshing. Reopen it and try again.",
+            )
+        }
         snapshot.toDashboardUi(CloudflareCacheState.LIVE)
     }
 

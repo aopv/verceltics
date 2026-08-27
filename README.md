@@ -146,7 +146,7 @@ All paid options unlock the same Verceltics Pro entitlement. App Store pricing c
 - Kotlin with Jetpack Compose and Material 3 native interactions
 - Android Keystore-backed credential protection and app-private, backup-excluded storage
 - A native provider catalog covering all 27 integrations
-- End-to-end native flows for Vercel and PageSpeed/CrUX, plus read-only Netlify and Cloudflare inventory flows; Search Console currently has an Android backend foundation only
+- End-to-end native flows for Vercel and PageSpeed/CrUX, plus read-only Netlify, Cloudflare, and Google Search Console workspaces
 
 ### Web
 
@@ -194,6 +194,15 @@ cd android
 ```
 
 Open the `android` directory in Android Studio to run the app on an Android emulator. Android provider parity is intentionally incremental; consult [the migration matrix](docs/native-mobile-architecture.md#screen-by-screen-status) before testing a provider workflow.
+
+To enable Google Search Console OAuth in a personal Android build, add the client values to your user-level `~/.gradle/gradle.properties` (never commit them):
+
+```properties
+VERCELTICS_GOOGLE_OAUTH_CLIENT_ID=123456-example.apps.googleusercontent.com
+VERCELTICS_GOOGLE_OAUTH_REDIRECT_SCHEME=com.googleusercontent.apps.123456-example
+```
+
+The redirect scheme must match the Android OAuth client registered with Google. Builds without these properties remain usable and show a configuration-needed state instead of requesting or storing a token.
 
 ## Run the website
 

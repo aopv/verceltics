@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LightMode
@@ -217,6 +218,22 @@ fun AboutScreen(
                     title = stringResource(R.string.about_product_hunt),
                     subtitle = stringResource(R.string.about_product_hunt_subtitle),
                     destination = AboutDestination.PRODUCT_HUNT,
+                    onAction = onAction,
+                )
+                AboutDivider()
+                DestinationRow(
+                    icon = Icons.Rounded.Star,
+                    title = stringResource(R.string.about_rate_app),
+                    subtitle = stringResource(R.string.about_rate_app_subtitle),
+                    destination = AboutDestination.RATE_APP,
+                    onAction = onAction,
+                )
+                AboutDivider()
+                DestinationRow(
+                    icon = Icons.Rounded.Favorite,
+                    title = stringResource(R.string.about_support_development),
+                    subtitle = stringResource(R.string.about_support_development_subtitle),
+                    destination = AboutDestination.SUPPORT_DEVELOPMENT,
                     onAction = onAction,
                 )
             }

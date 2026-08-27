@@ -15,6 +15,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -51,12 +52,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -65,6 +69,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -130,13 +136,22 @@ fun PageSpeedRoute(
     viewModel: PageSpeedViewModel,
     onBack: () -> Unit,
     onConnectionChanged: (Boolean) -> Unit = {},
+    searchRequestId: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(searchRequestId) }
+    var siteFocusRequestId by rememberSaveable { mutableIntStateOf(0) }
     BackHandler(onBack = onBack)
     LaunchedEffect(state.status) {
         if (state.status != PageSpeedConnectionStatus.RESTORING) {
             onConnectionChanged(state.isConnected)
+        }
+    }
+    LaunchedEffect(searchRequestId) {
+        if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
+            lastHandledSearchRequestId = searchRequestId
+            siteFocusRequestId += 1
         }
     }
     PageSpeedScreen(
@@ -148,6 +163,7 @@ fun PageSpeedRoute(
         onRequestDisconnect = viewModel::requestDisconnectConfirmation,
         onDismissDisconnect = viewModel::dismissDisconnectConfirmation,
         onConfirmDisconnect = viewModel::confirmDisconnect,
+        searchFocusRequestId = siteFocusRequestId,
         modifier = modifier,
     )
 }
@@ -162,12 +178,19 @@ fun PageSpeedScreen(
     onRequestDisconnect: () -> Unit,
     onDismissDisconnect: () -> Unit,
     onConfirmDisconnect: () -> Unit,
+    searchFocusRequestId: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     var siteUrl by rememberSaveable { mutableStateOf(state.savedSiteUrl.orEmpty()) }
     val apiKeyController = remember { EphemeralSecretController() }
     var hasApiKey by remember { mutableStateOf(false) }
     var localFormError by remember { mutableStateOf<String?>(null) }
+    var searchNotice by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastHandledSearchFocusRequestId by rememberSaveable {
+        mutableIntStateOf(searchFocusRequestId)
+    }
+    val siteUrlFocusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     val haptic = LocalHapticFeedback.current
 
     if (state.status == PageSpeedConnectionStatus.DISCONNECTED) {
@@ -179,6 +202,22 @@ fun PageSpeedScreen(
     }
     LaunchedEffect(state.savedSiteUrl) {
         if (siteUrl.isBlank()) siteUrl = state.savedSiteUrl.orEmpty()
+    }
+    LaunchedEffect(searchFocusRequestId, state.status) {
+        if (
+            searchFocusRequestId > 0 &&
+            searchFocusRequestId != lastHandledSearchFocusRequestId &&
+            state.status != PageSpeedConnectionStatus.RESTORING
+        ) {
+            lastHandledSearchFocusRequestId = searchFocusRequestId
+            if (state.status == PageSpeedConnectionStatus.DISCONNECTED) {
+                searchNotice = null
+                siteUrlFocusRequester.requestFocus()
+                keyboard?.show()
+            } else {
+                searchNotice = "PageSpeed is a single-site workspace. Disconnect to audit a different HTTPS URL."
+            }
+        }
     }
     LaunchedEffect(state.status) {
         if (state.status == PageSpeedConnectionStatus.CONNECTED) {
@@ -215,6 +254,16 @@ fun PageSpeedScreen(
                 onCancel()
             },
         )
+        searchNotice?.let { message ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 4.dp)
+                    .testTag("pagespeed.searchNotice"),
+            ) {
+                FeedbackPanel(message = message, isError = false)
+            }
+        }
 
         when (state.status) {
             PageSpeedConnectionStatus.RESTORING -> PageSpeedLoading(
@@ -234,6 +283,7 @@ fun PageSpeedScreen(
                 },
                 error = localFormError ?: state.error,
                 operation = state.operation,
+                siteUrlFocusRequester = siteUrlFocusRequester,
                 onConnect = {
                     val secret = apiKeyController.consume()
                     hasApiKey = false
@@ -349,6 +399,7 @@ private fun ConnectionForm(
     onApiKeyPresenceChange: (Boolean) -> Unit,
     error: String?,
     operation: PageSpeedOperation?,
+    siteUrlFocusRequester: FocusRequester,
     onConnect: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -407,6 +458,7 @@ private fun ConnectionForm(
                         placeholder = "https://example.com/page",
                         icon = Icons.Rounded.Language,
                         keyboardType = KeyboardType.Uri,
+                        focusRequester = siteUrlFocusRequester,
                         testTag = "pagespeed.siteUrl",
                     )
                     EphemeralApiKeyInput(
@@ -607,44 +659,61 @@ private fun AuditHero(dashboard: PageSpeedDashboardUi) {
     val mobileScore = dashboard.metrics.firstOrNull { it.key == "pagespeed.mobile.performance" }
     val desktopScore = dashboard.metrics.firstOrNull { it.key == "pagespeed.desktop.performance" }
     val fieldLcp = dashboard.metrics.firstOrNull { it.key == "crux.largest_contentful_paint" }
-    OffsetPanel(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 224.dp),
-        color = MaterialTheme.colorScheme.primary,
-        testTag = "pagespeed.hero",
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+    BoxWithConstraints {
+        val stacked = shouldStackPageSpeedLayout(
+            availableWidthDp = maxWidth.value,
+            fontScale = LocalDensity.current.fontScale,
+        )
+        OffsetPanel(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 224.dp),
+            color = MaterialTheme.colorScheme.primary,
+            testTag = "pagespeed.hero",
         ) {
-            Row(verticalAlignment = Alignment.Top) {
-                PageSpeedProviderMark()
-                Spacer(Modifier.width(13.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        dashboard.siteName,
-                        style = MaterialTheme.typography.headlineMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        dashboard.siteUrl,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                StatusPill(dashboard.status, statusColor(dashboard.status))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                HeroMetric("MOBILE", mobileScore?.let(::formatMetric) ?: "—", Modifier.weight(1f))
-                HeroMetric("DESKTOP", desktopScore?.let(::formatMetric) ?: "—", Modifier.weight(1f))
-                HeroMetric("FIELD LCP", fieldLcp?.let(::formatMetric) ?: "—", Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.Top) {
+                    PageSpeedProviderMark()
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            dashboard.siteName,
+                            style = MaterialTheme.typography.headlineMedium,
+                            maxLines = if (stacked) 3 else 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            dashboard.siteUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = if (stacked) 4 else 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (!stacked) {
+                        Spacer(Modifier.width(8.dp))
+                        StatusPill(dashboard.status, statusColor(dashboard.status))
+                    }
+                }
+                if (stacked) {
+                    StatusPill(dashboard.status, statusColor(dashboard.status))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        HeroMetric("MOBILE", mobileScore?.let(::formatMetric) ?: "—", Modifier.fillMaxWidth())
+                        HeroMetric("DESKTOP", desktopScore?.let(::formatMetric) ?: "—", Modifier.fillMaxWidth())
+                        HeroMetric("FIELD LCP", fieldLcp?.let(::formatMetric) ?: "—", Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        HeroMetric("MOBILE", mobileScore?.let(::formatMetric) ?: "—", Modifier.weight(1f))
+                        HeroMetric("DESKTOP", desktopScore?.let(::formatMetric) ?: "—", Modifier.weight(1f))
+                        HeroMetric("FIELD LCP", fieldLcp?.let(::formatMetric) ?: "—", Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
@@ -682,15 +751,20 @@ private fun HeroMetric(label: String, value: String, modifier: Modifier = Modifi
 
 @Composable
 private fun SourceRail(sources: PageSpeedSourcesUi) {
-    OffsetPanel(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        testTag = "pagespeed.sources",
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+    BoxWithConstraints {
+        val stacked = shouldStackPageSpeedLayout(
+            availableWidthDp = maxWidth.value,
+            fontScale = LocalDensity.current.fontScale,
+        )
+        OffsetPanel(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            testTag = "pagespeed.sources",
         ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
             Text(
                 "AUDIT CHANNELS",
                 style = MaterialTheme.typography.labelSmall.copy(
@@ -698,13 +772,22 @@ private fun SourceRail(sources: PageSpeedSourcesUi) {
                     letterSpacing = 1.sp,
                 ),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                SourceSegment("MOBILE LAB", sources.mobile, Modifier.weight(1f))
-                SourceSegment("DESKTOP LAB", sources.desktop, Modifier.weight(1f))
-                SourceSegment("CRUX FIELD", sources.crux, Modifier.weight(1f))
+                if (stacked) {
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        SourceSegment("MOBILE LAB", sources.mobile, Modifier.fillMaxWidth())
+                        SourceSegment("DESKTOP LAB", sources.desktop, Modifier.fillMaxWidth())
+                        SourceSegment("CRUX FIELD", sources.crux, Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        SourceSegment("MOBILE LAB", sources.mobile, Modifier.weight(1f))
+                        SourceSegment("DESKTOP LAB", sources.desktop, Modifier.weight(1f))
+                        SourceSegment("CRUX FIELD", sources.crux, Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
@@ -754,7 +837,12 @@ private data class MetricGroupUi(
 
 @Composable
 private fun MetricGroupPanel(group: MetricGroupUi, metrics: List<PageSpeedMetricUi>) {
-    OffsetPanel(
+    BoxWithConstraints {
+        val stacked = shouldStackPageSpeedLayout(
+            availableWidthDp = maxWidth.value,
+            fontScale = LocalDensity.current.fontScale,
+        )
+        OffsetPanel(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         testTag = "pagespeed.metrics.${group.prefix}",
@@ -780,15 +868,22 @@ private fun MetricGroupPanel(group: MetricGroupUi, metrics: List<PageSpeedMetric
                     )
                 }
             }
-            metrics.chunked(2).forEach { rowMetrics ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    rowMetrics.forEach { metric ->
-                        MetricTile(metric, group.accent, Modifier.weight(1f))
+                if (stacked) {
+                    metrics.forEach { metric ->
+                        MetricTile(metric, group.accent, Modifier.fillMaxWidth())
                     }
-                    if (rowMetrics.size == 1) Spacer(Modifier.weight(1f))
+                } else {
+                    metrics.chunked(2).forEach { rowMetrics ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            rowMetrics.forEach { metric ->
+                                MetricTile(metric, group.accent, Modifier.weight(1f))
+                            }
+                            if (rowMetrics.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
@@ -1037,6 +1132,7 @@ private fun BrandedInput(
     placeholder: String,
     icon: ImageVector,
     keyboardType: KeyboardType,
+    focusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     isSecret: Boolean = false,
@@ -1054,8 +1150,7 @@ private fun BrandedInput(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .testTag(testTag),
+                .heightIn(min = 56.dp),
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.07f)
                 .compositeOver(MaterialTheme.colorScheme.surface),
             shape = InputShape,
@@ -1071,6 +1166,8 @@ private fun BrandedInput(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
+                    .then(if (focusRequester == null) Modifier else Modifier.focusRequester(focusRequester))
+                    .testTag(testTag)
                     .semantics {
                         contentDescription = label
                         if (isSecret) password()
@@ -1217,6 +1314,11 @@ private fun formatMetric(metric: PageSpeedMetricUi): String {
 
 private fun formatTimestamp(timestampMillis: Long): String =
     DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(timestampMillis))
+
+internal fun shouldStackPageSpeedLayout(
+    availableWidthDp: Float,
+    fontScale: Float,
+): Boolean = availableWidthDp < 340f || fontScale >= 1.3f
 
 private fun statusColor(status: String): Color = when (status.lowercase(Locale.ROOT)) {
     "good" -> PageSpeedAccent

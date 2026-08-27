@@ -22,6 +22,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import com.apoorvdarshan.verceltics.ui.DebugVercelGatewayController
 import com.apoorvdarshan.verceltics.ui.DebugVercelScenario
+import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyGatewayController
+import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyScenario
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedGatewayController
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedScenario
 import org.junit.Assert.assertEquals
@@ -39,6 +41,7 @@ class VercelticsNavigationTest {
         compose.activityRule.scenario.onActivity { activity ->
             activity.configureGateway(DebugVercelScenario.DISCONNECTED)
             activity.configurePageSpeedGateway(DebugPageSpeedScenario.DISCONNECTED)
+            activity.configureNetlifyGateway(DebugNetlifyScenario.DISCONNECTED)
         }
         waitForTag("mainNavigation.hosting")
         compose.onNodeWithTag("mainNavigation.hosting").performClick()
@@ -89,6 +92,16 @@ class VercelticsNavigationTest {
         waitForTag("workspace.hosting.savedUnavailable")
         compose.onAllNodesWithTag("workspace.hosting.empty").assertCountEquals(0)
         compose.onAllNodesWithTag("workspace.hosting.connect").assertCountEquals(0)
+    }
+
+    @Test
+    fun connectedNetlifyRemainsReachableWhenVercelSavedAccountIsUnavailable() {
+        configureNetlifyGateway(DebugNetlifyScenario.CONNECTED)
+        configureGateway(DebugVercelScenario.OFFLINE_SAVED)
+
+        waitForTag("workspace.hosting.savedUnavailable")
+        compose.onNodeWithTag("workspace.hosting.netlifyConnection").assertIsDisplayed().performClick()
+        waitForTag("netlify.dashboard")
     }
 
     @Test
@@ -231,6 +244,93 @@ class VercelticsNavigationTest {
     }
 
     @Test
+    fun hostingCatalogOpensNativeNetlifyRouteAndBackClearsCredentialProtection() {
+        openNetlifyDetail()
+
+        compose.onNodeWithTag("netlify.connectionForm").assertIsDisplayed()
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.activityRule.scenario.onActivity { activity ->
+            check(
+                activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
+            )
+        }
+
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+
+        waitForTag("workspace.hosting.empty")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+        compose.activityRule.scenario.onActivity { activity ->
+            check(
+                activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0,
+            )
+        }
+    }
+
+    @Test
+    fun connectedVercelWorkspaceStillExposesNetlifyProviderRoute() {
+        configureGateway(DebugVercelScenario.CONNECTED)
+        waitForTag("workspace.hosting.connected")
+
+        compose.onNodeWithTag("workspace.hosting.connectNetlify").performClick()
+
+        waitForTag("netlify.connectionForm")
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+    }
+
+    @Test
+    fun restoredNetlifyCardAndSavedSiteDetailSurviveActivityRecreation() {
+        configureNetlifyGateway(DebugNetlifyScenario.CONNECTED)
+
+        waitForTag("workspace.hosting.netlifyConnection")
+        compose.onNodeWithTag("workspace.hosting.connected").assertIsDisplayed()
+        compose.onNodeWithTag("workspace.hosting.netlifyConnection").performClick()
+        waitForTag("netlify.dashboard")
+        compose.onNodeWithTag("netlify.site.netlify-test-site").performClick()
+        waitForTag("netlify.siteDetail")
+        compose.onNodeWithTag("netlify.deploy.debug-deploy").assertIsDisplayed()
+        val restoreCallsBeforeRecreation = DebugNetlifyGatewayController.restoreCalls
+
+        compose.activityRule.scenario.recreate()
+
+        waitForTag("netlify.siteDetail")
+        assertEquals(restoreCallsBeforeRecreation, DebugNetlifyGatewayController.restoreCalls)
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        waitForTag("netlify.dashboard")
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        waitForTag("workspace.hosting.netlifyConnection")
+        compose.onNodeWithTag("mainNavigation.dock").assertIsDisplayed()
+    }
+
+    @Test
+    fun netlifyConnectMutationSurvivesActivityRecreationWithoutSavingTokenInUi() {
+        configureNetlifyGateway(DebugNetlifyScenario.DISCONNECTED, blockConnect = true)
+        openNetlifyDetail()
+        compose.onNodeWithTag("netlify.token").performTextInput("temporary-netlify-token")
+        compose.onNodeWithTag("netlify.connect").performClick()
+        compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
+            DebugNetlifyGatewayController.isConnectStarted()
+        }
+
+        compose.activityRule.scenario.recreate()
+        waitForTag("netlify.screen")
+        compose.activityRule.scenario.onActivity(VercelticsTestActivity::releaseNetlifyConnect)
+
+        waitForTag("netlify.dashboard")
+        compose.onAllNodesWithTag("mainNavigation.dock").assertCountEquals(0)
+        compose.activityRule.scenario.onActivity { activity ->
+            check(
+                activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE == 0,
+            )
+        }
+    }
+
+    @Test
     fun topLevelSystemBackDoesNotReplayTabSelections() {
         compose.onNodeWithTag("mainNavigation.sites").performClick()
         compose.onNodeWithTag("workspace.sites.empty").assertIsDisplayed()
@@ -325,6 +425,14 @@ class VercelticsNavigationTest {
         waitForTag("pagespeed.screen")
     }
 
+    private fun openNetlifyDetail() {
+        compose.onNodeWithTag("workspace.hosting.connect").performClick()
+        waitForTag("connection.catalog.hosting")
+        compose.onNodeWithTag("connection.category.hosting").assertIsSelected()
+        compose.onNodeWithTag("provider.netlify").performClick()
+        waitForTag("netlify.screen")
+    }
+
     private fun configureGateway(
         scenario: DebugVercelScenario,
         blockConnect: Boolean = false,
@@ -340,6 +448,15 @@ class VercelticsNavigationTest {
     private fun configurePageSpeedGateway(scenario: DebugPageSpeedScenario) {
         compose.activityRule.scenario.onActivity { activity ->
             activity.configurePageSpeedGateway(scenario)
+        }
+    }
+
+    private fun configureNetlifyGateway(
+        scenario: DebugNetlifyScenario,
+        blockConnect: Boolean = false,
+    ) {
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.configureNetlifyGateway(scenario, blockConnect)
         }
     }
 

@@ -1,0 +1,370 @@
+package com.apoorvdarshan.verceltics.ui.netlify
+
+import android.content.Context
+import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyBuild
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyBuildControls
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyCollectionResult
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyConnectionCommit
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyConnectionRepository
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyConnectionStore
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyDataSource
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyDeployment
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyFetchResult
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyProfile
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyResourceResult
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyRestoreProblem
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyRestoreResult
+import com.apoorvdarshan.verceltics.data.netlify.NetlifySite
+import com.apoorvdarshan.verceltics.data.netlify.NetlifySiteDetails
+import com.apoorvdarshan.verceltics.data.netlify.NetlifySnapshot
+import com.apoorvdarshan.verceltics.data.network.CancelableCall
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+
+/** Production-owned bridge from the native encrypted Netlify backend into observable UI models. */
+class NativeNetlifyUiGateway internal constructor(
+    private val connectionStore: NetlifyConnectionStore,
+    private val dataSource: NetlifyDataSource,
+    private val networkExecutor: ExecutorService,
+    private val storageExecutor: ExecutorService,
+    private val beforeAcceptValidatedConnection: suspend () -> Unit = {},
+    private val afterAcceptValidatedConnection: suspend () -> Unit = {},
+) : NetlifyUiGateway {
+    override suspend fun restore(): Result<NetlifyRestoreUi> = capture {
+        when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
+            NetlifyRestoreResult.NotConnected -> NetlifyRestoreUi.NotConnected
+            is NetlifyRestoreResult.Restored -> restored.cachedSnapshot?.let { snapshot ->
+                NetlifyRestoreUi.Available(
+                    snapshot.toDashboardUi(
+                        cacheState = if (restored.cacheIsStale) {
+                            NetlifyCacheState.CACHED_STALE
+                        } else {
+                            NetlifyCacheState.CACHED_FRESH
+                        },
+                    ),
+                )
+            } ?: NetlifyRestoreUi.SavedWithoutInventory(restored.profile.toUi())
+            is NetlifyRestoreResult.Unavailable -> NetlifyRestoreUi.SavedUnavailable(
+                when (restored.problem) {
+                    NetlifyRestoreProblem.SAVED_RECORD_UNREADABLE ->
+                        "The saved Netlify connection could not be opened. It was not deleted or replaced."
+                    NetlifyRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
+                        "Android secure storage is unavailable. Unlock the device and try again."
+                },
+            )
+        }
+    }
+
+    override suspend fun connect(personalToken: SecretValue): Result<NetlifyDashboardUi> = capture {
+        val result = dataSource.newSnapshotCall(personalToken).executeAwait(networkExecutor)
+        val snapshot = result.snapshotOrThrow()
+        var pendingCommit: NetlifyConnectionCommit? = null
+        try {
+            val commit = persistValidatedConnectionAwait(
+                executor = storageExecutor,
+                connectionStore = connectionStore,
+                token = personalToken,
+                result = result,
+            )
+            pendingCommit = commit
+            beforeAcceptValidatedConnection()
+            // Acceptance is the commit point. Once entered, cancellation cannot turn a durable
+            // successful connection into a reported failure or request compensation.
+            withContext(NonCancellable) {
+                executeAwait(storageExecutor) { connectionStore.acceptValidatedConnection(commit) }
+                pendingCommit = null
+                afterAcceptValidatedConnection()
+                snapshot.toDashboardUi(NetlifyCacheState.LIVE)
+            }
+        } catch (error: CancellationException) {
+            // Cancellation can land after the encrypted save has returned but before accept. In
+            // that window the inner continuation is already complete, so compensate explicitly.
+            // A cancellation during the save itself is handled by persistValidatedConnectionAwait;
+            // the single-threaded barrier waits for that queued rollback before allowing retry.
+            withContext(NonCancellable) {
+                pendingCommit?.let { commit ->
+                    executeAwait(storageExecutor) {
+                        connectionStore.rollbackValidatedConnection(commit)
+                    }
+                }
+                executeAwait(storageExecutor) {}
+            }
+            throw error
+        } catch (error: Exception) {
+            withContext(NonCancellable) {
+                pendingCommit?.let { commit ->
+                    executeAwait(storageExecutor) {
+                        connectionStore.rollbackValidatedConnection(commit)
+                    }
+                }
+            }
+            throw error
+        }
+    }
+
+    override suspend fun refresh(): Result<NetlifyDashboardUi> = capture {
+        val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
+            ?: throw NetlifyUiException("Connect a Netlify account first.")
+        val result = dataSource.newSnapshotCall(saved.account.personalToken).executeAwait(networkExecutor)
+        val snapshot = result.snapshotOrThrow()
+        executeAwait(storageExecutor) { connectionStore.persistRefreshResult(result) }
+        snapshot.toDashboardUi(NetlifyCacheState.LIVE)
+    }
+
+    override suspend fun loadSite(siteId: String): Result<NetlifySiteWorkspaceUi> = capture {
+        val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
+            ?: throw NetlifyUiException("Connect a Netlify account first.")
+        val token = saved.account.personalToken
+        coroutineScope {
+            val details = async {
+                dataSource.newSiteDetailsCall(token, siteId).executeAwait(networkExecutor)
+            }
+            val deployments = async {
+                dataSource.newDeploymentsCall(token, siteId).executeAwait(networkExecutor)
+            }
+            val builds = async {
+                dataSource.newBuildsCall(token, siteId).executeAwait(networkExecutor)
+            }
+            NetlifySiteWorkspaceUi(
+                siteId = siteId,
+                details = details.await().toUi(),
+                deployments = deployments.await().toDeploymentsUi(),
+                builds = builds.await().toBuildsUi(),
+            )
+        }
+    }
+
+    override suspend fun disconnect(): Result<Unit> = capture {
+        executeAwait(storageExecutor, connectionStore::disconnect)
+    }
+
+    private fun NetlifyFetchResult.snapshotOrThrow(): NetlifySnapshot = when (this) {
+        is NetlifyFetchResult.Complete -> snapshot
+        is NetlifyFetchResult.Partial -> snapshot
+        is NetlifyFetchResult.Failure -> throw NetlifyUiException(failure.message)
+    }
+
+    private fun NetlifySnapshot.toDashboardUi(cacheState: NetlifyCacheState): NetlifyDashboardUi {
+        val visibleSites = sites.take(MAXIMUM_VISIBLE_SITES)
+        return NetlifyDashboardUi(
+            account = profile.toUi(),
+            sites = visibleSites.map(NetlifySite::toUi),
+            loadedSiteCount = sites.size,
+            providerInventoryComplete = sitesComplete,
+            inventoryTruncatedForDisplay = sites.size > visibleSites.size,
+            warnings = warnings,
+            fetchedAtMillis = fetchedAtMillis,
+            cacheState = cacheState,
+        )
+    }
+
+    private fun NetlifyResourceResult<NetlifySiteDetails>.toUi():
+        NetlifyResourceUi<NetlifySiteDetailsUi> = when (this) {
+        is NetlifyResourceResult.Complete -> NetlifyResourceUi.Available(value.toUi())
+        is NetlifyResourceResult.Failure -> NetlifyResourceUi.Unavailable(failure.message)
+    }
+
+    private fun NetlifyCollectionResult<NetlifyDeployment>.toDeploymentsUi():
+        NetlifyCollectionUi<NetlifyDeploymentUi> = when (this) {
+        is NetlifyCollectionResult.Complete -> boundedCollection(
+            items = items.map(NetlifyDeployment::toUi),
+            providerComplete = true,
+            warning = null,
+        )
+        is NetlifyCollectionResult.Partial -> boundedCollection(
+            items = items.map(NetlifyDeployment::toUi),
+            providerComplete = false,
+            warning = failure.message,
+        )
+        is NetlifyCollectionResult.Failure -> NetlifyCollectionUi(
+            items = emptyList(),
+            loadedItemCount = 0,
+            providerCollectionComplete = false,
+            truncatedForDisplay = false,
+            warning = failure.message,
+        )
+    }
+
+    private fun NetlifyCollectionResult<NetlifyBuild>.toBuildsUi():
+        NetlifyCollectionUi<NetlifyBuildUi> = when (this) {
+        is NetlifyCollectionResult.Complete -> boundedCollection(
+            items = items.map(NetlifyBuild::toUi),
+            providerComplete = true,
+            warning = null,
+        )
+        is NetlifyCollectionResult.Partial -> boundedCollection(
+            items = items.map(NetlifyBuild::toUi),
+            providerComplete = false,
+            warning = failure.message,
+        )
+        is NetlifyCollectionResult.Failure -> NetlifyCollectionUi(
+            items = emptyList(),
+            loadedItemCount = 0,
+            providerCollectionComplete = false,
+            truncatedForDisplay = false,
+            warning = failure.message,
+        )
+    }
+
+    private fun <T> boundedCollection(
+        items: List<T>,
+        providerComplete: Boolean,
+        warning: String?,
+    ): NetlifyCollectionUi<T> = NetlifyCollectionUi(
+        items = items.take(MAXIMUM_VISIBLE_HISTORY_ITEMS),
+        loadedItemCount = items.size,
+        providerCollectionComplete = providerComplete,
+        truncatedForDisplay = items.size > MAXIMUM_VISIBLE_HISTORY_ITEMS,
+        warning = warning,
+    )
+
+    companion object {
+        const val MAXIMUM_VISIBLE_SITES: Int = 100
+        const val MAXIMUM_VISIBLE_HISTORY_ITEMS: Int = 100
+
+        fun create(context: Context): NativeNetlifyUiGateway = NativeNetlifyUiGateway(
+            connectionStore = NetlifyConnectionStore(
+                NetlifyConnectionRepository.create(context.applicationContext),
+            ),
+            dataSource = NetlifyDataSource(),
+            networkExecutor = Executors.newFixedThreadPool(4) { runnable ->
+                Thread(runnable, "verceltics-netlify").apply { isDaemon = true }
+            },
+            storageExecutor = Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "verceltics-netlify-storage").apply { isDaemon = true }
+            },
+        )
+    }
+}
+
+private fun NetlifyProfile.toUi(): NetlifyAccountUi = NetlifyAccountUi(id, displayName, email)
+
+private fun NetlifySite.toUi(): NetlifySiteUi = NetlifySiteUi(
+    id = id,
+    name = name,
+    subtitle = subtitle,
+    url = url,
+    status = status,
+    updatedAtMillis = updatedAtMillis,
+)
+
+private fun NetlifySiteDetails.toUi(): NetlifySiteDetailsUi = NetlifySiteDetailsUi(
+    site = site.toUi(),
+    domains = domains.map { NetlifyDomainUi(it.name, it.kind.name) },
+    buildControls = buildControls?.toUi(),
+    publishedDeployment = publishedDeployment?.toUi(),
+)
+
+private fun NetlifyBuildControls.toUi(): NetlifyBuildControlsUi = NetlifyBuildControlsUi(
+    buildsStopped = buildsStopped,
+    repositoryUrl = repositoryUrl,
+    repositoryPath = repositoryPath,
+    repositoryBranch = repositoryBranch,
+    baseDirectory = baseDirectory,
+    publishDirectory = publishDirectory,
+    functionsDirectory = functionsDirectory,
+    buildCommand = buildCommand,
+    allowedBranches = allowedBranches,
+    provider = provider,
+)
+
+private fun NetlifyDeployment.toUi(): NetlifyDeploymentUi = NetlifyDeploymentUi(
+    id = id,
+    title = title,
+    status = status,
+    createdAtMillis = createdAtMillis,
+    url = url,
+    branch = branch,
+    commitMessage = commitMessage,
+)
+
+private fun NetlifyBuild.toUi(): NetlifyBuildUi = NetlifyBuildUi(
+    id = id,
+    deploymentId = deploymentId,
+    commitSha = commitSha,
+    isDone = isDone,
+    error = error,
+    createdAtMillis = createdAtMillis,
+)
+
+private suspend fun <T> CancelableCall<T>.executeAwait(executor: ExecutorService): T =
+    suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { cancel() }
+        executor.execute {
+            try {
+                val value = execute()
+                if (continuation.isActive) continuation.resume(value)
+            } catch (error: CancellationException) {
+                if (continuation.isActive) continuation.cancel(error)
+            } catch (error: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+        }
+    }
+
+private suspend fun <T> executeAwait(executor: ExecutorService, block: () -> T): T =
+    suspendCancellableCoroutine { continuation ->
+        val future = executor.submit {
+            try {
+                val value = block()
+                if (continuation.isActive) continuation.resume(value)
+            } catch (error: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+        }
+        continuation.invokeOnCancellation { future.cancel(true) }
+    }
+
+private suspend fun persistValidatedConnectionAwait(
+    executor: ExecutorService,
+    connectionStore: NetlifyConnectionStore,
+    token: SecretValue,
+    result: NetlifyFetchResult,
+): NetlifyConnectionCommit = suspendCancellableCoroutine { continuation ->
+    val committed = AtomicReference<NetlifyConnectionCommit?>()
+    val cleanupScheduled = AtomicBoolean(false)
+
+    fun scheduleRollback() {
+        if (!cleanupScheduled.compareAndSet(false, true)) return
+        executor.execute {
+            committed.get()?.let { commit ->
+                runCatching { connectionStore.rollbackValidatedConnection(commit) }
+            }
+        }
+    }
+
+    continuation.invokeOnCancellation { scheduleRollback() }
+    executor.execute {
+        if (!continuation.isActive) return@execute
+        try {
+            val commit = connectionStore.saveValidatedConnection(token, result)
+            committed.set(commit)
+            continuation.resume(commit) { _, _, _ -> scheduleRollback() }
+        } catch (error: Exception) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
+    }
+}
+
+private suspend inline fun <T> capture(crossinline block: suspend () -> T): Result<T> = try {
+    Result.success(block())
+} catch (error: CancellationException) {
+    throw error
+} catch (error: NetlifyUiException) {
+    Result.failure(error)
+} catch (_: SecurityException) {
+    Result.failure(NetlifyUiException("Android secure storage is unavailable."))
+} catch (_: Exception) {
+    Result.failure(NetlifyUiException("Netlify could not complete this request."))
+}

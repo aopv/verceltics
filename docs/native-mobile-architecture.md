@@ -33,8 +33,12 @@ A catalog entry is not considered provider parity. A provider is complete only a
 |---|---|---|
 | iOS SwiftUI | Preserved | Existing UI, Liquid Glass integration, local data, and all 27 provider integrations remain native and operational. |
 | Android app shell and catalog | Implemented | Native Compose navigation and discoverability for 10 hosting providers, 8 registrars, and 9 site services. |
-| Android Vercel | First end-to-end slice | Token connection and validation, protected account persistence, projects, loading/error/empty states, search, and refresh establish the Android architecture. |
-| Android remaining 26 providers | Catalogued, not yet parity-complete | Provider API clients and detail workflows will be migrated and tested one screen at a time. |
+| Android Vercel | Implemented | Token connection and validation, protected account persistence, projects, analytics, loading/error/empty states, search, refresh, and details. |
+| Android PageSpeed & CrUX | Implemented | Protected API-key connection, Lighthouse and field-data audits, cached restore, history, loading/error/empty states, refresh, and details. |
+| Android Netlify | Implemented read-only flow | Protected token connection, cached restore, sites, domains, build controls, published deployments, deploy history, build history, cancellation reconciliation, refresh, and details. Mutations remain intentionally excluded. |
+| Android Cloudflare | Backend foundation | Fixed-origin API-token verification plus bounded accounts, zones, Pages, and Workers inventory, encrypted persistence, partial-cache merging, and tests. Compose connection and detail screens remain pending. |
+| Android Google Search Console | Backend foundation | Fixed-origin OAuth/API transport, encrypted credentials, properties, analytics, sitemaps, URL inspection, bounded parsing, partial-cache merging, and tests. Android OAuth configuration and Compose screens remain pending. |
+| Android remaining providers | Catalogued, not yet parity-complete | Provider API clients and detail workflows will be migrated and tested one screen at a time. |
 
 The matrix describes source parity, not store availability. It should be updated whenever a provider passes or falls back from the completion gates above.
 

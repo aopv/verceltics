@@ -94,6 +94,7 @@ fun VercelWorkspaceScreen(
     refreshRequestId: Int,
     onConnectProvider: (IntegrationProvider) -> Unit,
     onSearchAvailabilityChanged: (Boolean) -> Unit,
+    connectedProviderContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
@@ -180,6 +181,7 @@ fun VercelWorkspaceScreen(
                 selectedProjectId = null
                 vercelConnectionViewModel.disconnect()
             },
+            connectedProviderContent = connectedProviderContent,
             modifier = modifier,
         )
 
@@ -188,6 +190,7 @@ fun VercelWorkspaceScreen(
             onConnectProvider = onConnectProvider,
             onAccountAction = {},
             persistenceError = state.error,
+            connectedContent = connectedProviderContent,
             modifier = modifier,
         )
 
@@ -210,6 +213,10 @@ fun VercelWorkspaceScreen(
                 selectedProjectId = project.id
                 vercelConnectionViewModel.openProjectAnalytics(project)
             },
+            connectedProviderContent = connectedProviderContent,
+            onConnectNetlify = {
+                IntegrationCatalog.provider("netlify")?.let(onConnectProvider)
+            },
             modifier = modifier,
         )
     }
@@ -222,6 +229,7 @@ private fun SavedVercelUnavailableWorkspace(
     isRefreshing: Boolean,
     onRetry: () -> Unit,
     onDisconnect: () -> Unit,
+    connectedProviderContent: (@Composable () -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     var showDisconnectConfirmation by rememberSaveable { mutableStateOf(false) }
@@ -296,6 +304,9 @@ private fun SavedVercelUnavailableWorkspace(
                 }
             }
         }
+        connectedProviderContent?.let { content ->
+            item(key = "connected-provider") { content() }
+        }
     }
 }
 
@@ -309,6 +320,8 @@ private fun ConnectedVercelWorkspace(
     onManageConnection: () -> Unit,
     onDisconnect: () -> Unit,
     onProjectSelected: (VercelProjectUi) -> Unit,
+    connectedProviderContent: (@Composable () -> Unit)?,
+    onConnectNetlify: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -546,6 +559,23 @@ private fun ConnectedVercelWorkspace(
                         )
                     }
                 }
+            }
+
+            connectedProviderContent?.let { content ->
+                item(key = "secondary-connected-provider") {
+                    content()
+                }
+            } ?: item(key = "connect-netlify") {
+                ThemedActionButton(
+                    text = "CONNECT NETLIFY",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onConnectNetlify()
+                    },
+                    tone = ThemedActionTone.NEUTRAL,
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "workspace.hosting.connectNetlify",
+                )
             }
 
             if (isRefreshing) {

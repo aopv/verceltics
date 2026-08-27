@@ -146,7 +146,7 @@ All paid options unlock the same Verceltics Pro entitlement. App Store pricing c
 - Kotlin with Jetpack Compose and Material 3 native interactions
 - Android Keystore-backed credential protection and app-private, backup-excluded storage
 - A native provider catalog covering all 27 integrations
-- The first end-to-end provider slice targets Vercel; the remaining provider APIs and detail screens are migrated independently
+- End-to-end native flows for Vercel, PageSpeed/CrUX, and read-only Netlify, with Cloudflare and Search Console backend foundations migrated independently
 
 ### Web
 

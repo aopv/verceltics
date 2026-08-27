@@ -3,13 +3,18 @@ package com.apoorvdarshan.verceltics
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelticsApp
+import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenController
@@ -18,6 +23,8 @@ import com.apoorvdarshan.verceltics.ui.screens.about.UnconfiguredAboutUpdateChec
 import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -31,6 +38,12 @@ class MainActivity : ComponentActivity() {
     private val pageSpeedViewModel by viewModels<PageSpeedViewModel> {
         PageSpeedViewModel.Factory(pageSpeedGateway)
     }
+    private val netlifyGateway
+        get() = (application as VercelticsApplication).netlifyGateway
+    private val netlifyViewModel by viewModels<NetlifyViewModel> {
+        NetlifyViewModel.Factory(netlifyGateway)
+    }
+    private var ownsNetlifySecureFlag = false
     private val aboutController by lazy(LazyThreadSafetyMode.NONE) {
         AboutScreenController(
             appearanceStore = SharedPreferencesAppearancePreferenceStore(this),
@@ -42,6 +55,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        observeNetlifyCredentialProtection()
         setContent {
             val aboutState = aboutController.state
             val aboutScope = rememberCoroutineScope()
@@ -49,10 +63,35 @@ class MainActivity : ComponentActivity() {
                 VercelticsApp(
                     vercelConnectionViewModel = vercelConnectionViewModel,
                     pageSpeedViewModel = pageSpeedViewModel,
+                    netlifyViewModel = netlifyViewModel,
                     aboutState = aboutState,
                     onAboutAction = { dispatchAboutAction(it, aboutScope) },
                 )
             }
+        }
+    }
+
+    private fun observeNetlifyCredentialProtection() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                netlifyViewModel.uiState
+                    .map { it.requiresSecureWindow }
+                    .distinctUntilChanged()
+                    .collect(::setNetlifyCredentialProtection)
+            }
+        }
+    }
+
+    private fun setNetlifyCredentialProtection(required: Boolean) {
+        val secureFlag = WindowManager.LayoutParams.FLAG_SECURE
+        if (required) {
+            if (window.attributes.flags and secureFlag == 0) {
+                window.addFlags(secureFlag)
+                ownsNetlifySecureFlag = true
+            }
+        } else if (ownsNetlifySecureFlag) {
+            window.clearFlags(secureFlag)
+            ownsNetlifySecureFlag = false
         }
     }
 

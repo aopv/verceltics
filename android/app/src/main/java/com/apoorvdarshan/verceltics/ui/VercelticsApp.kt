@@ -50,6 +50,9 @@ import com.apoorvdarshan.verceltics.ui.components.AppNavigationDock
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
+import com.apoorvdarshan.verceltics.ui.netlify.NetlifyConnectionCard
+import com.apoorvdarshan.verceltics.ui.netlify.NetlifyRoute
+import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedCacheState
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedConnectionStatus
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedRoute
@@ -68,6 +71,7 @@ import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
 private const val UI_PREFERENCES = "verceltics.ui"
 private const val LAST_PRIMARY_WORKSPACE = "lastPrimaryWorkspace"
 private const val PAGE_SPEED_PROVIDER_ID = "pageSpeed"
+private const val NETLIFY_PROVIDER_ID = "netlify"
 
 private enum class MainDestination(
     val id: String,
@@ -109,6 +113,7 @@ private enum class MainDestination(
 fun VercelticsApp(
     vercelConnectionViewModel: VercelConnectionViewModel,
     pageSpeedViewModel: PageSpeedViewModel,
+    netlifyViewModel: NetlifyViewModel,
     aboutState: AboutScreenState = defaultAboutScreenState(),
     onAboutAction: (AboutScreenAction) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -132,6 +137,7 @@ fun VercelticsApp(
     var hostingSearchAvailable by rememberSaveable { mutableStateOf(false) }
     val connectionState by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     val pageSpeedState by pageSpeedViewModel.uiState.collectAsStateWithLifecycle()
+    val netlifyState by netlifyViewModel.uiState.collectAsStateWithLifecycle()
     val destination = MainDestination.fromId(destinationId)
     val provider = providerId?.let(IntegrationCatalog::provider)
     val destinationState = rememberSaveableStateHolder()
@@ -163,9 +169,18 @@ fun VercelticsApp(
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         hostingRefreshRequestId += 1
+        netlifyViewModel.onForeground()
     }
 
-    BackHandler(enabled = provider != null && provider.id != PAGE_SPEED_PROVIDER_ID) {
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        netlifyViewModel.onBackground()
+    }
+
+    BackHandler(
+        enabled = provider != null &&
+            provider.id != PAGE_SPEED_PROVIDER_ID &&
+            provider.id != NETLIFY_PROVIDER_ID,
+    ) {
         providerId = null
     }
 
@@ -207,14 +222,18 @@ fun VercelticsApp(
                 .background(MaterialTheme.colorScheme.background),
         ) {
             if (provider != null) {
-                if (provider.id == PAGE_SPEED_PROVIDER_ID) {
-                    PageSpeedRoute(
+                when (provider.id) {
+                    PAGE_SPEED_PROVIDER_ID -> PageSpeedRoute(
                         viewModel = pageSpeedViewModel,
                         onBack = { providerId = null },
                         modifier = Modifier.fillMaxSize(),
                     )
-                } else {
-                    ProviderDetailScreen(
+                    NETLIFY_PROVIDER_ID -> NetlifyRoute(
+                        viewModel = netlifyViewModel,
+                        onBack = { providerId = null },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    else -> ProviderDetailScreen(
                         provider = provider,
                         vercelConnectionViewModel = vercelConnectionViewModel,
                         onBack = { providerId = null },
@@ -230,6 +249,17 @@ fun VercelticsApp(
                             refreshRequestId = hostingRefreshRequestId,
                             onConnectProvider = { providerId = it.id },
                             onSearchAvailabilityChanged = { hostingSearchAvailable = it },
+                            connectedProviderContent = if (netlifyState.isConnected) {
+                                {
+                                    NetlifyConnectionCard(
+                                        state = netlifyState,
+                                        onClick = { providerId = NETLIFY_PROVIDER_ID },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             modifier = Modifier.fillMaxSize(),
                         )
 

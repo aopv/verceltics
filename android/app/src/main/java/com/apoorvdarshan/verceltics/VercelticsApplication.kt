@@ -2,6 +2,7 @@ package com.apoorvdarshan.verceltics
 
 import android.app.Application
 import com.apoorvdarshan.verceltics.ui.NativeVercelUiGateway
+import com.apoorvdarshan.verceltics.ui.netlify.NativeNetlifyUiGateway
 import com.apoorvdarshan.verceltics.ui.pagespeed.NativePageSpeedUiGateway
 
 class VercelticsApplication : Application() {
@@ -11,5 +12,9 @@ class VercelticsApplication : Application() {
 
     val pageSpeedGateway: NativePageSpeedUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         NativePageSpeedUiGateway.create(this)
+    }
+
+    val netlifyGateway: NativeNetlifyUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        NativeNetlifyUiGateway.create(this)
     }
 }

@@ -3176,10 +3176,10 @@ private struct SearchConsoleDateRangeSheet: View {
             .navigationTitle("Custom date range")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                AppThemedToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                AppThemedToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         apply(min(startDate, endDate), max(startDate, endDate))
                         dismiss()
@@ -3285,10 +3285,10 @@ private struct SearchConsoleFilterEditor: View {
             .navigationTitle("Performance filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                AppThemedToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                AppThemedToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         apply(filters)
                         dismiss()

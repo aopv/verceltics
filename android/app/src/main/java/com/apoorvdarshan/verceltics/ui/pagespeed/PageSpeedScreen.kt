@@ -109,7 +109,7 @@ import java.lang.ref.WeakReference
 
 private val PageSpeedAccent = Color(0xFF4FBD7A)
 private val PageSpeedWarning = Color(0xFFFFD83D)
-private val InputShape = RoundedCornerShape(4.dp)
+private val InputShape = RoundedCornerShape(13.dp)
 
 /** Integration-neutral entry point; the app shell can provide its gateway and navigation callback. */
 @Composable
@@ -723,7 +723,7 @@ private fun AuditHero(dashboard: PageSpeedDashboardUi) {
 private fun HeroMetric(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.heightIn(min = 90.dp),
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
@@ -809,7 +809,7 @@ private fun SourceSegment(
             },
         color = color.copy(alpha = 0.17f).compositeOver(MaterialTheme.colorScheme.surface),
         contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.25.dp, color),
     ) {
         Row(
@@ -898,7 +898,7 @@ private fun MetricTile(
 ) {
     Surface(
         modifier = modifier.heightIn(min = 92.dp),
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         color = accent.copy(alpha = 0.10f).compositeOver(MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         tonalElevation = 0.dp,
@@ -1257,7 +1257,7 @@ private fun PageSpeedProviderMark() {
         modifier = Modifier.size(56.dp),
         color = Color.Black,
         contentColor = PageSpeedAccent,
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
     ) {
         Box(Modifier.padding(13.dp), contentAlignment = Alignment.Center) {

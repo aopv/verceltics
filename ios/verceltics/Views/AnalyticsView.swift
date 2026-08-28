@@ -407,18 +407,17 @@ struct AnalyticsView: View {
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            AppThemedToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     if !reduceMotion {
                         withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
                     }
                     startLoad(forceRefresh: true)
                 } label: {
-                    AppToolbarActionLabel(
-                        systemImage: "arrow.clockwise",
-                        rotation: refreshSpin,
-                        isBusy: vm.isLoading
-                    )
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14, weight: .semibold))
+                        .rotationEffect(.degrees(refreshSpin))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 .disabled(vm.isLoading)
                 .accessibilityLabel(vm.isLoading ? "Refreshing analytics" : "Refresh analytics")

@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -80,10 +79,10 @@ enum class AppNavigationDestination(
 }
 
 /**
- * Native Compose counterpart to the iOS custom Liquid Glass navigation dock.
+ * Native Compose counterpart to the restored iOS system Liquid Glass navigation hierarchy.
  *
- * Android uses translucent Material surfaces, elevation, a branded tint, and a hard offset outline
- * to echo the same visual language without pretending to expose Apple's Liquid Glass API. Haptic
+ * Android uses translucent Material surfaces, native elevation, and restrained selection tint
+ * without pretending to expose Apple's Liquid Glass API. Haptic
  * feedback intentionally belongs to [onDestinationSelected] and [onSearch], so the app shell can
  * coordinate feedback with the navigation state change.
  */
@@ -118,7 +117,7 @@ fun AppNavigationDock(
         } else {
             (62f + (fontScale - 1f).coerceAtLeast(0f) * 28f).dp
         }
-        val searchWidth = if (labelLayout == NavigationLabelLayout.ICON_ONLY) 56.dp else 68.dp
+        val searchWidth = 62.dp
 
         if (dockArrangement == NavigationDockArrangement.STACKED_SEARCH) {
             Column(
@@ -132,14 +131,14 @@ fun AppNavigationDock(
                     labelLayout = NavigationLabelLayout.ICON_ONLY,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(64.dp + DockShadowYOffset),
+                        .height(64.dp),
                 )
                 SearchDockButton(
                     onClick = onSearch,
                     labelLayout = NavigationLabelLayout.COMPACT,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(accessibleLabeledDockHeight(fontScale) + DockShadowYOffset),
+                        .height(accessibleLabeledDockHeight(fontScale)),
                 )
             }
         } else {
@@ -156,15 +155,15 @@ fun AppNavigationDock(
                     labelLayout = labelLayout,
                     modifier = Modifier
                         .weight(1f)
-                        .height(dockHeight + DockShadowYOffset),
+                        .height(dockHeight),
                 )
 
                 SearchDockButton(
                     onClick = onSearch,
                     labelLayout = labelLayout,
                     modifier = Modifier
-                        .width(searchWidth + DockShadowXOffset)
-                        .height(dockHeight + DockShadowYOffset),
+                        .width(searchWidth)
+                        .height(dockHeight),
                 )
             }
         }
@@ -223,7 +222,7 @@ private fun PrimaryNavigationDock(
     GlassDockSurface(
         modifier = modifier,
         shape = DockShape,
-        tintStrength = 0.12f,
+        tintStrength = 0.035f,
         testTag = "mainNavigation.primary",
     ) {
         Row(
@@ -268,35 +267,18 @@ private fun NavigationDestinationButton(
         label = "${destination.id} dock press",
     )
     val containerColor by animateColorAsState(
-        targetValue = if (isSelected) colors.primary else Color.Transparent,
+        targetValue = if (isSelected) colors.surfaceVariant.copy(alpha = 0.88f) else Color.Transparent,
         label = "${destination.id} dock container",
     )
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected) colors.onPrimary else colors.onSurface,
+        targetValue = colors.onSurface,
         label = "${destination.id} dock content",
     )
-    val isDark = colors.surface.luminance() < 0.5f
-    val selectedShadowColor = if (isDark) {
-        colors.primary.copy(alpha = 0.58f)
-    } else {
-        Color.Black.copy(alpha = 0.80f)
-    }
-    val selectedRailColor = if (isDark) colors.onSurface else colors.outline
-
     Box(
         modifier = modifier
             .fillMaxHeight()
             .scale(scale),
     ) {
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .offset(x = SelectedShadowXOffset, y = SelectedShadowYOffset)
-                    .background(selectedShadowColor, SelectedShape),
-            )
-        }
-
         Surface(
             onClick = onClick,
             modifier = Modifier
@@ -310,7 +292,7 @@ private fun NavigationDestinationButton(
             shape = SelectedShape,
             color = containerColor,
             contentColor = contentColor,
-            border = if (isSelected) BorderStroke(2.dp, colors.outline) else null,
+            border = if (isSelected) BorderStroke(1.dp, colors.outline) else null,
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             interactionSource = interactionSource,
@@ -353,16 +335,6 @@ private fun NavigationDestinationButton(
                     )
                 }
 
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 3.dp)
-                            .width(22.dp)
-                            .height(3.dp)
-                            .background(selectedRailColor, RoundedCornerShape(2.dp)),
-                    )
-                }
             }
         }
     }
@@ -385,8 +357,8 @@ private fun SearchDockButton(
 
     GlassDockSurface(
         modifier = modifier.scale(scale),
-        shape = DockShape,
-        tintStrength = 0.28f,
+        shape = CircleShape,
+        tintStrength = 0.055f,
         testTag = "mainNavigation.searchSurface",
     ) {
         Surface(
@@ -400,20 +372,12 @@ private fun SearchDockButton(
                 },
             color = Color.Transparent,
             contentColor = colors.onSurface,
-            shape = DockShape,
+            shape = CircleShape,
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             interactionSource = interactionSource,
         ) {
             Box(Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 7.dp)
-                        .width(26.dp)
-                        .height(3.dp)
-                        .background(colors.primary),
-                )
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -426,14 +390,6 @@ private fun SearchDockButton(
                         contentDescription = null,
                         modifier = Modifier.size(23.dp),
                     )
-                    if (labelLayout != NavigationLabelLayout.ICON_ONLY) {
-                        Text(
-                            text = "Search",
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
             }
         }
@@ -450,27 +406,17 @@ private fun GlassDockSurface(
 ) {
     val colors = MaterialTheme.colorScheme
     val isDark = colors.surface.luminance() < 0.5f
-    val glassAlpha = if (isDark) 0.84f else 0.88f
-    val outlineAlpha = if (isDark) 0.34f else 0.92f
-    val shadowAlpha = if (isDark) 0.56f else 0.82f
+    val glassAlpha = if (isDark) 0.86f else 0.92f
 
     Box(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(end = DockShadowXOffset, bottom = DockShadowYOffset)
-                .offset(x = DockShadowXOffset, y = DockShadowYOffset)
-                .border(3.dp, colors.outline.copy(alpha = shadowAlpha), shape),
-        )
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(end = DockShadowXOffset, bottom = DockShadowYOffset)
                 .testTag(testTag),
             color = colors.surface.copy(alpha = glassAlpha),
             contentColor = colors.onSurface,
             shape = shape,
-            border = BorderStroke(1.5.dp, colors.outline.copy(alpha = outlineAlpha)),
+            border = BorderStroke(1.dp, colors.outline),
             tonalElevation = 0.dp,
             shadowElevation = 12.dp,
         ) {
@@ -503,10 +449,6 @@ private fun Modifier.consumeUnclaimedPointerInput(): Modifier = pointerInput(Uni
     }
 }
 
-private val DockShape = RoundedCornerShape(19.dp)
-private val SelectedShape = RoundedCornerShape(14.dp)
-private val DockShadowXOffset: Dp = 3.dp
-private val DockShadowYOffset: Dp = 4.dp
-private val SelectedShadowXOffset: Dp = 2.dp
-private val SelectedShadowYOffset: Dp = 3.dp
+private val DockShape = RoundedCornerShape(24.dp)
+private val SelectedShape = RoundedCornerShape(19.dp)
 private val MinimumTouchTarget: Dp = 48.dp

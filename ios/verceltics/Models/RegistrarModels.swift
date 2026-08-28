@@ -189,12 +189,8 @@ struct RegistrarMark: View {
             .foregroundStyle(monochrome ? AppTheme.textPrimary : provider.accentColor)
             .frame(width: size * 0.55, height: size * 0.55)
             .frame(width: size, height: size)
-            .background(monochrome ? AppTheme.surfaceRaised : AppTheme.signalForeground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                    .strokeBorder(AppTheme.strokeStrong, lineWidth: monochrome ? 1 : 1.25)
-            }
+            .background((monochrome ? AppTheme.textPrimary : provider.accentColor).opacity(monochrome ? 0.10 : 0.13))
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
             .accessibilityHidden(true)
     }
 }

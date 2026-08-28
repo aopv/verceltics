@@ -168,7 +168,7 @@ struct CloudflareAPIExplorerView: View {
         .navigationTitle(preset?.title ?? "API Explorer")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            AppThemedToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Clear") { viewModel.clearResponse() }
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(AppTheme.textSecondary)

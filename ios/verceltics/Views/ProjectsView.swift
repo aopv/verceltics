@@ -191,6 +191,7 @@ struct ProjectsView: View {
     @AppStorage("hasShownOnboardingRatePrompt") private var hasShownOnboardingRatePrompt = false
     @State private var vm: ProjectsViewModel
     @State private var searchText = ""
+    @State private var isSearching = false
     @State private var proGate = ProAccessGate<ProjectProRoute>()
     @State private var navigationProjectId: String?
 
@@ -224,64 +225,54 @@ struct ProjectsView: View {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    AppGlassSearchField(
-                        text: $searchText,
-                        prompt: "Search projects",
-                        startsFocused: startWithSearch,
-                        focusRequestID: searchRequestID
-                    )
-                    .padding(.horizontal, AppLayout.pagePadding(for: hSize))
-                    .padding(.top, 16)
-                    .padding(.bottom, 14)
-                    .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: hSize)
-
-                    Group {
-                        if vm.isLoading {
-                            ProjectsSkeletonView()
-                        } else if let error = vm.error, vm.projects.isEmpty {
-                            ErrorStateView(message: error) {
-                                Task { await loadProjects() }
-                            }
-                        } else if let warning = vm.warning, vm.projects.isEmpty {
-                            ErrorStateView(message: warning) {
-                                Task { await refreshProjects() }
-                            }
-                        } else if vm.projects.isEmpty {
-                            EmptyStateView(
-                                icon: "folder",
-                                title: "No projects",
-                                subtitle: "Create a Vercel project, then refresh this screen.",
-                                actionTitle: "Open Vercel"
-                            ) {
-                                if let url = URL(string: "https://vercel.com/new") {
-                                    UIApplication.shared.open(url)
-                                }
-                            }
-                        } else if filteredProjects.isEmpty {
-                            EmptyStateView(
-                                icon: "magnifyingglass",
-                                title: "No matches",
-                                subtitle: "Nothing in your projects matches \u{201C}\(searchText)\u{201D}.",
-                                actionTitle: "Clear search"
-                            ) { searchText = "" }
-                        } else {
-                            projectsList
+                if vm.isLoading {
+                    ProjectsSkeletonView()
+                } else if let error = vm.error, vm.projects.isEmpty {
+                    ErrorStateView(message: error) {
+                        Task { await loadProjects() }
+                    }
+                } else if let warning = vm.warning, vm.projects.isEmpty {
+                    ErrorStateView(message: warning) {
+                        Task { await refreshProjects() }
+                    }
+                } else if vm.projects.isEmpty {
+                    EmptyStateView(
+                        icon: "folder",
+                        title: "No projects",
+                        subtitle: "Create a Vercel project, then refresh this screen.",
+                        actionTitle: "Open Vercel"
+                    ) {
+                        if let url = URL(string: "https://vercel.com/new") {
+                            UIApplication.shared.open(url)
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if filteredProjects.isEmpty {
+                    EmptyStateView(
+                        icon: "magnifyingglass",
+                        title: "No matches",
+                        subtitle: "Nothing in your projects matches \u{201C}\(searchText)\u{201D}.",
+                        actionTitle: "Clear search"
+                    ) { searchText = "" }
+                } else {
+                    projectsList
                 }
             }
-            .navigationTitle("Vercel")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
             .toolbar {
-                AppThemedToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()
                 }
             }
             .task { await loadProjects() }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
                 Task { await loadProjects() }
+            }
+            .onAppear {
+                if startWithSearch { isSearching = true }
+            }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
             }
             .navigationDestination(item: $navigationProjectId) { id in
                 if let project = vm.projects.first(where: { $0.id == id }) {
@@ -494,7 +485,7 @@ struct ProjectCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 7) {
                         Text(project.name)
-                            .font(AppTheme.displayFont(.headline))
+                            .font(.headline)
                             .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
 
@@ -520,8 +511,8 @@ struct ProjectCard: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
 
             if let link = project.link, let org = link.org, let repo = link.repo {
@@ -680,11 +671,6 @@ struct ProjectIcon: View {
             }
         }
         .frame(width: 40, height: 40)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
-        }
         .task(id: domain) {
             loadedImage = nil
             didFail = false

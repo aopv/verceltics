@@ -143,7 +143,7 @@ private fun ProviderLogoFallback(
             text = provider.displayName.take(1).uppercase(),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Black,
+            fontWeight = FontWeight.Bold,
         )
     }
 }

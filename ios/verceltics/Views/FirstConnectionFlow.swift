@@ -92,7 +92,7 @@ struct FirstConnectionWelcomeView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Check your whole stack. Close the laptop.")
-                    .font(.largeTitle.weight(.black).width(.condensed))
+                    .font(.largeTitle.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -144,7 +144,7 @@ struct FirstConnectionWelcomeView: View {
                 .accessibilityHidden(true)
 
             Text("Verceltics")
-                .font(.title2.weight(.black).width(.condensed))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(AppTheme.textPrimary)
         }
     }
@@ -198,31 +198,26 @@ struct FirstConnectionWelcomeView: View {
         Button(action: onContinue) {
             HStack(spacing: 12) {
                 Text(dynamicTypeSize.isAccessibilitySize ? "Connect services" : "Choose what to connect")
-                    .font(.headline.weight(.black).width(.condensed))
+                    .font(.headline)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "arrow.right")
                     .font(.callout.weight(.bold))
                     .frame(width: 30, height: 30)
-                    .background(AppTheme.signalForeground.opacity(0.10), in: Circle())
+                    .background(AppTheme.canvas.opacity(0.12), in: Circle())
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 10 : 0)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 58)
-            .foregroundStyle(AppTheme.signalForeground)
-            .background(AppTheme.signalFill)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+            .foregroundStyle(AppTheme.canvas)
+            .background(AppTheme.textPrimary)
+            .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
-                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
-            }
-            .background {
-                RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
-                    .fill(AppTheme.shadow)
-                    .offset(x: 3, y: 3)
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 0.5)
             }
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -290,14 +285,14 @@ private struct ProviderCatalogMarquee: View {
 
     private var catalogTitle: some View {
         Text("WORKS WITH YOUR STACK")
-            .font(AppTheme.displayFont(.caption))
+            .font(.caption2.weight(.bold))
             .tracking(1.05)
             .foregroundStyle(AppTheme.textSecondary)
     }
 
     private var integrationCount: some View {
         Text("\(totalCount) INTEGRATIONS")
-            .font(AppTheme.displayFont(.caption).monospacedDigit())
+            .font(.caption2.weight(.bold).monospacedDigit())
             .tracking(0.6)
             .foregroundStyle(AppTheme.signal)
     }
@@ -328,7 +323,7 @@ private struct ProviderMarqueeLane<Item: Identifiable, Mark: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text(title)
-                    .font(AppTheme.displayFont(.caption2))
+                    .font(.caption2.weight(.bold))
                     .tracking(0.9)
                 Text("\(items.count)")
                     .font(.caption2.weight(.semibold).monospacedDigit())
@@ -410,7 +405,11 @@ private struct ProviderMarqueeLane<Item: Identifiable, Mark: View>: View {
         }
         .padding(.horizontal, 10)
         .frame(width: chipWidth, height: laneHeight, alignment: .leading)
-        .appSurface(cornerRadius: AppTheme.controlRadius)
+        .background(AppTheme.surface.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(AppTheme.strokeSoft, lineWidth: 0.5)
+        }
     }
 
     private var edgeFadeMask: some View {

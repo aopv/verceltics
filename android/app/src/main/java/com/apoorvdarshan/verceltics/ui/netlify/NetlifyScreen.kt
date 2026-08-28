@@ -763,7 +763,7 @@ private fun NetlifySiteRow(site: NetlifySiteUi, onClick: () -> Unit) {
         ) {
             Surface(
                 modifier = Modifier.size(43.dp),
-                shape = RoundedCornerShape(3.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = Color.Black,
                 contentColor = NetlifyAccent,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -1038,7 +1038,7 @@ private fun HistoryCopy(title: String, detail: String, timeMillis: Long?, modifi
 private fun MetricTile(value: String, label: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.heightIn(min = 78.dp),
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         color = Color.White.copy(alpha = 0.88f),
         contentColor = Color.Black,
         border = BorderStroke(1.5.dp, Color.Black),
@@ -1121,7 +1121,7 @@ private fun EphemeralTokenInput(
                 .fillMaxWidth()
                 .heightIn(min = 56.dp),
             color = colors.primary.copy(alpha = 0.07f).compositeOver(colors.surface),
-            shape = RoundedCornerShape(4.dp),
+            shape = RoundedCornerShape(13.dp),
             border = BorderStroke(if (LocalVercelticsDarkTheme.current) 1.dp else 2.dp, colors.outline),
             tonalElevation = 0.dp,
         ) {

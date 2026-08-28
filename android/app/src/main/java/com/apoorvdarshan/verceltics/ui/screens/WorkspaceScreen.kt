@@ -242,7 +242,7 @@ private fun WorkspaceAdditionalConnectionState(
                 .heightIn(min = 46.dp)
                 .testTag("workspace.${workspace.id}.connect")
                 .semantics { role = Role.Button },
-            shape = RoundedCornerShape(5.dp),
+            shape = RoundedCornerShape(13.dp),
             color = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
@@ -366,7 +366,7 @@ private fun WorkspaceAccountControl(
         ) {
             Surface(
                 modifier = Modifier.size(28.dp),
-                shape = RoundedCornerShape(3.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.onSurface,
                 contentColor = MaterialTheme.colorScheme.primary,
                 border = BorderStroke(1.25.dp, MaterialTheme.colorScheme.primary),
@@ -406,7 +406,7 @@ private fun WorkspaceEmptyState(
     ) {
         Surface(
             modifier = Modifier.size(54.dp),
-            shape = RoundedCornerShape(5.dp),
+            shape = RoundedCornerShape(13.dp),
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
                 .compositeOver(MaterialTheme.colorScheme.surface),
             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -451,7 +451,7 @@ private fun WorkspaceEmptyState(
                 .widthIn(min = 154.dp)
                 .testTag("workspace.${workspace.id}.connect")
                 .semantics { role = Role.Button },
-            shape = RoundedCornerShape(5.dp),
+            shape = RoundedCornerShape(13.dp),
             color = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             tonalElevation = 0.dp,
@@ -492,7 +492,7 @@ private fun PersistenceErrorBanner(
         ) {
             Surface(
                 modifier = Modifier.size(38.dp),
-                shape = RoundedCornerShape(4.dp),
+                shape = RoundedCornerShape(13.dp),
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 contentColor = MaterialTheme.colorScheme.errorContainer,
                 tonalElevation = 0.dp,
@@ -718,7 +718,7 @@ private fun ConnectionProviderRow(
                 ) {
                     Surface(
                         modifier = Modifier.testTag("provider.${provider.id}.connected"),
-                        shape = RoundedCornerShape(3.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = ConnectedProviderGreen.copy(alpha = 0.18f)
                             .compositeOver(MaterialTheme.colorScheme.surface),
                         contentColor = ConnectedProviderGreen,
@@ -749,7 +749,7 @@ private fun ConnectionProviderRow(
                 )
             } else {
                 Surface(
-                    shape = RoundedCornerShape(3.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -842,7 +842,7 @@ private fun ConnectionCategoryButton(
                 role = Role.Tab
                 selected = isSelected
             },
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(13.dp),
         color = if (isSelected) {
             MaterialTheme.colorScheme.primary
         } else {

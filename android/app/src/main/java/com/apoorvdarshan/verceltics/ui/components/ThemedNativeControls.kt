@@ -62,9 +62,9 @@ fun ThemedActionButton(
         ThemedActionTone.DESTRUCTIVE -> colors.error
     }
     val borderColor = when (tone) {
-        ThemedActionTone.PRIMARY -> colors.outline
-        ThemedActionTone.NEUTRAL -> colors.primary
-        ThemedActionTone.DESTRUCTIVE -> colors.error
+        ThemedActionTone.PRIMARY -> colors.primary.copy(alpha = 0.30f)
+        ThemedActionTone.NEUTRAL -> colors.outline
+        ThemedActionTone.DESTRUCTIVE -> colors.error.copy(alpha = 0.28f)
     }
     Surface(
         onClick = onClick,
@@ -81,12 +81,12 @@ fun ThemedActionButton(
                     Modifier
                 },
             ),
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(13.dp),
         color = containerColor,
         contentColor = contentColor.copy(alpha = if (enabled) 1f else 0.38f),
-        border = BorderStroke(2.dp, borderColor.copy(alpha = if (enabled) 1f else 0.34f)),
+        border = BorderStroke(1.dp, borderColor.copy(alpha = if (enabled) 1f else 0.34f)),
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        shadowElevation = 3.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
@@ -128,7 +128,7 @@ fun ThemedAuthTextField(
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         trailingIcon = trailingIcon,
-        shape = RoundedCornerShape(5.dp),
+        shape = RoundedCornerShape(13.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = colors.primary,
             unfocusedBorderColor = colors.outline,
@@ -158,7 +158,7 @@ fun ThemedAlertDialog(
     AlertDialog(
         onDismissRequest = onDismissRequest,
         modifier = modifier.then(if (testTag == null) Modifier else Modifier.testTag(testTag)),
-        shape = RoundedCornerShape(7.dp),
+        shape = RoundedCornerShape(20.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         iconContentColor = MaterialTheme.colorScheme.primary,
         titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -198,7 +198,7 @@ fun ThemedModalBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier.then(if (testTag == null) Modifier else Modifier.testTag(testTag)),
-        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp),
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         tonalElevation = 0.dp,
@@ -209,7 +209,7 @@ fun ThemedModalBottomSheet(
                     .padding(top = 10.dp, bottom = 4.dp)
                     .width(44.dp)
                     .height(5.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
+                    .background(MaterialTheme.colorScheme.outline, RoundedCornerShape(50)),
             )
         },
         content = content,

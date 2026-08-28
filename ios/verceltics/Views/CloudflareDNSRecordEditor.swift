@@ -112,11 +112,11 @@ struct CloudflareDNSRecordEditor: View {
         .navigationTitle(record == nil ? "Add DNS Record" : "Edit DNS Record")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            AppThemedToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
                     .foregroundStyle(AppTheme.textSecondary)
             }
-            AppThemedToolbarItem(placement: .confirmationAction) {
+            ToolbarItem(placement: .confirmationAction) {
                 Button(record == nil ? "Create" : "Save") {
                     validateAndConfirm()
                 }
@@ -534,11 +534,11 @@ struct CloudflareCachePurgeView: View {
         .navigationTitle("Purge Cache")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            AppThemedToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
                     .foregroundStyle(AppTheme.textSecondary)
             }
-            AppThemedToolbarItem(placement: .confirmationAction) {
+            ToolbarItem(placement: .confirmationAction) {
                 Button("Continue") { preparePurge() }
                     .fontWeight(.bold)
                     .foregroundStyle(CloudflareStyle.orange)

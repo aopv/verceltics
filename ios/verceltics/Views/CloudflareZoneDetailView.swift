@@ -1193,7 +1193,7 @@ private struct CloudflareCustomAnalyticsRangeView: View {
         .navigationTitle("Custom interval")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            AppThemedToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
             }
         }

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 @main
 struct VercelticsApp: App {
@@ -28,22 +27,6 @@ struct VercelticsApp: App {
         _siteStore = State(initialValue: SiteStore())
 #endif
 
-        let segmentedControl = UISegmentedControl.appearance()
-        segmentedControl.selectedSegmentTintColor = UIColor(AppTheme.signalFill)
-        segmentedControl.setTitleTextAttributes(
-            [
-                .foregroundColor: UIColor(AppTheme.signalForeground),
-                .font: UIFont.systemFont(ofSize: 13, weight: .bold),
-            ],
-            for: .selected
-        )
-        segmentedControl.setTitleTextAttributes(
-            [
-                .foregroundColor: UIColor(AppTheme.textPrimary),
-                .font: UIFont.systemFont(ofSize: 13, weight: .semibold),
-            ],
-            for: .normal
-        )
     }
 
     private var hasAnyConnection: Bool {
@@ -79,7 +62,6 @@ struct VercelticsApp: App {
             .environment(appearanceStore)
             .environment(registrarStore)
             .environment(siteStore)
-            .appNativeControlTheme()
             .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
             .task(id: firstLaunchMigrationState) {
 #if DEBUG

@@ -410,7 +410,7 @@ private fun ConnectedVercelWorkspace(
                         IntegrationCatalog.provider("vercel")?.let { provider ->
                             Surface(
                                 modifier = Modifier.size(28.dp),
-                                shape = RoundedCornerShape(3.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 border = BorderStroke(1.25.dp, MaterialTheme.colorScheme.primary),
                                 tonalElevation = 0.dp,
@@ -437,7 +437,7 @@ private fun ConnectedVercelWorkspace(
                         .widthIn(min = 280.dp, max = 340.dp)
                         .testTag("workspace.hosting.accountMenu"),
                     containerColor = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(4.dp),
+                    shape = RoundedCornerShape(13.dp),
                     tonalElevation = 0.dp,
                     shadowElevation = 12.dp,
                     border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
@@ -877,7 +877,7 @@ private fun VercelProjectMark() {
         modifier = Modifier.size(42.dp),
         color = MaterialTheme.colorScheme.onSurface,
         contentColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         tonalElevation = 0.dp,
     ) {
@@ -922,7 +922,7 @@ private fun HostingFeedbackBanner(message: String) {
             .padding(14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Text("!", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black)
+        Text("!", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(10.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium)
     }
@@ -941,7 +941,7 @@ private fun HostingWarningBanner(message: String) {
             .padding(14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Text("!", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
+        Text("!", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(10.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium)
     }

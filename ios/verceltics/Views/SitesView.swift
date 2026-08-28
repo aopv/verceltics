@@ -8,16 +8,15 @@ private enum SiteProRoute: Hashable {
 struct SitesView: View {
     @Environment(SiteStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PaywallManager.self) private var paywallManager
 
     var startWithSearch = false
     var searchRequestID = 0
     var backgroundRefreshRequestID = 0
-    var performsAutomaticRefresh = true
 
     @State private var searchText = ""
+    @State private var isSearching = false
     @State private var showingConnection = false
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<SiteProRoute>()
@@ -86,30 +85,33 @@ struct SitesView: View {
             }
             .navigationTitle("Sites")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: searchPrompt)
             .toolbar {
-                AppThemedToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarLeading) {
                     SiteAccountMenu()
                 }
-                AppThemedToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(action: refreshActive) {
-                        AppToolbarActionLabel(
-                            systemImage: "arrow.clockwise",
-                            rotation: refreshSpin,
-                            isBusy: isRefreshingActiveAccount
-                        )
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(isRefreshingActiveAccount || activeAccount == nil)
                     .accessibilityLabel(isRefreshingActiveAccount ? "Refreshing selected site service" : "Refresh selected site service")
-                    .accessibilityIdentifier("topbar.refresh.sites")
                 }
             }
             .task(id: siteAccountIdentity) {
-                guard performsAutomaticRefresh else { return }
                 await loadActive(force: false)
             }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
-                guard performsAutomaticRefresh else { return }
                 Task { await loadActive(force: false) }
+            }
+            .onAppear {
+                if startWithSearch { isSearching = true }
+            }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
             }
             .sheet(isPresented: $showingConnection) {
                 LoginView(initialCategory: .sites)
@@ -131,129 +133,115 @@ struct SitesView: View {
     }
 
     private var dashboard: some View {
-        VStack(spacing: 0) {
-            AppGlassSearchField(
-                text: $searchText,
-                prompt: searchPrompt,
-                startsFocused: startWithSearch,
-                focusRequestID: searchRequestID
-            )
-            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-            .padding(.top, 16)
-            .padding(.bottom, 14)
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
-
-            ScrollView {
-                LazyVStack(spacing: 18) {
-                    if let account = activeAccount {
-                        Button {
-                            request(.service(account.id))
-                        } label: {
-                            serviceOverview(account)
-                        }
-                        .buttonStyle(PressScaleButtonStyle())
-                    }
-
-                    if let activeRefreshError, let account = activeAccount {
-                        AppFeedbackBanner(
-                            title: "\(account.provider.displayName) could not refresh",
-                            message: activeRefreshError,
-                            actionTitle: "Try again"
-                        ) {
-                            refreshActive()
-                        }
-                    }
-
-                    if let persistenceError {
-                        AppFeedbackBanner(
-                            title: "Saved site data needs attention",
-                            message: persistenceError,
-                            icon: "lock.trianglebadge.exclamationmark.fill",
-                            tint: AppTheme.danger
-                        )
-                    }
-
-                    if !snapshotWarnings.isEmpty {
-                        AppFeedbackBanner(
-                            title: "\(snapshotWarnings.count) data \(snapshotWarnings.count == 1 ? "note" : "notes")",
-                            message: snapshotWarnings.prefix(3).joined(separator: "\n"),
-                            icon: "info.circle.fill",
-                            tint: AppTheme.warning
-                        )
-                    }
-
-                    AppSectionHeader(
-                        title: resourceSectionTitle,
-                        count: resources.count,
-                        accent: activeAccount?.provider.accentColor ?? AppTheme.signal
-                    )
-
-                    if resources.isEmpty {
-                        AppEmptyState(
-                            icon: searchText.isEmpty ? "network.slash" : "magnifyingglass",
-                            title: searchText.isEmpty ? "No \(resourceSectionTitle.lowercased()) returned yet" : "No matching \(resourceSectionTitle.lowercased())",
-                            message: searchText.isEmpty
-                                ? emptyResourceMessage
-                                : "Nothing matches “\(searchText)”.",
-                            actionTitle: searchText.isEmpty ? "Refresh service" : "Clear search"
-                        ) {
-                            if searchText.isEmpty { refreshActive() }
-                            else { searchText = "" }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .appSurface()
-                    } else {
-                        LazyVGrid(columns: siteColumns, spacing: 14) {
-                            ForEach(resources) { resource in
-                                Button {
-                                    if let account = activeAccount {
-                                        request(.resource(accountID: account.id, resourceID: resource.id))
-                                    }
-                                } label: {
-                                    resourceCard(resource)
-                                }
-                                .buttonStyle(PressScaleButtonStyle())
-                            }
-                        }
-                    }
-
-                    Button { showingConnection = true } label: {
-                        addServiceCard
+        ScrollView {
+            LazyVStack(spacing: 18) {
+                if let account = activeAccount {
+                    Button {
+                        request(.service(account.id))
+                    } label: {
+                        serviceOverview(account)
                     }
                     .buttonStyle(PressScaleButtonStyle())
                 }
-                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-                .padding(.top, 4)
-                .padding(.bottom, 28)
-                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
-            }
-            .refreshable { await loadActive(force: true) }
-            .scrollDismissesKeyboard(.interactively)
-        }
-    }
 
-    private var emptyState: some View {
-        AppAdaptiveEmptyStateContainer {
-            VStack(spacing: 10) {
-                if let error = persistenceError {
+                if let activeRefreshError, let account = activeAccount {
                     AppFeedbackBanner(
-                        title: "Saved site services need attention",
-                        message: error,
+                        title: "\(account.provider.displayName) could not refresh",
+                        message: activeRefreshError,
+                        actionTitle: "Try again"
+                    ) {
+                        refreshActive()
+                    }
+                }
+
+                if let persistenceError {
+                    AppFeedbackBanner(
+                        title: "Saved site data needs attention",
+                        message: persistenceError,
                         icon: "lock.trianglebadge.exclamationmark.fill",
                         tint: AppTheme.danger
                     )
                 }
 
-                AppEmptyState(
-                    icon: "chart.xyaxis.line",
-                    title: "Connect a site service",
-                    message: "View search, analytics, performance, and uptime providers in separate focused dashboards.",
-                    actionTitle: "Connect a service"
-                ) {
-                    showingConnection = true
+                if !snapshotWarnings.isEmpty {
+                    AppFeedbackBanner(
+                        title: "\(snapshotWarnings.count) data \(snapshotWarnings.count == 1 ? "note" : "notes")",
+                        message: snapshotWarnings.prefix(3).joined(separator: "\n"),
+                        icon: "info.circle.fill",
+                        tint: AppTheme.warning
+                    )
                 }
+
+                AppSectionHeader(
+                    title: resourceSectionTitle,
+                    count: resources.count,
+                    accent: activeAccount?.provider.accentColor ?? AppTheme.signal
+                )
+
+                if resources.isEmpty {
+                    AppEmptyState(
+                        icon: searchText.isEmpty ? "network.slash" : "magnifyingglass",
+                        title: searchText.isEmpty ? "No \(resourceSectionTitle.lowercased()) returned yet" : "No matching \(resourceSectionTitle.lowercased())",
+                        message: searchText.isEmpty
+                            ? emptyResourceMessage
+                            : "Nothing matches “\(searchText)”.",
+                        actionTitle: searchText.isEmpty ? "Refresh service" : "Clear search"
+                    ) {
+                        if searchText.isEmpty { refreshActive() }
+                        else { searchText = "" }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .appSurface()
+                } else {
+                    LazyVGrid(columns: siteColumns, spacing: 14) {
+                        ForEach(resources) { resource in
+                            Button {
+                                if let account = activeAccount {
+                                    request(.resource(accountID: account.id, resourceID: resource.id))
+                                }
+                            } label: {
+                                resourceCard(resource)
+                            }
+                            .buttonStyle(PressScaleButtonStyle())
+                        }
+                    }
+                }
+
+                Button { showingConnection = true } label: {
+                    addServiceCard
+                }
+                .buttonStyle(PressScaleButtonStyle())
+            }
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 18)
+            .padding(.bottom, 28)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+        }
+        .refreshable { await loadActive(force: true) }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            if let error = persistenceError {
+                AppFeedbackBanner(
+                    title: "Saved site services need attention",
+                    message: error,
+                    icon: "lock.trianglebadge.exclamationmark.fill",
+                    tint: AppTheme.danger
+                )
+            }
+
+            AppEmptyState(
+                icon: "chart.xyaxis.line",
+                title: "Connect a site service",
+                message: "View search, analytics, performance, and uptime providers in separate focused dashboards.",
+                actionTitle: "Connect a service"
+            ) {
+                showingConnection = true
             }
         }
+        .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+        .appContentWidth(560, horizontalSizeClass: horizontalSizeClass)
     }
 
     @ViewBuilder
@@ -314,17 +302,20 @@ struct SitesView: View {
         )
 
         return VStack(alignment: .leading, spacing: 16) {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 12) {
-                    serviceIdentity(account)
-                    AppStatusBadge(text: status.text, tone: status.tone)
+            HStack(alignment: .top, spacing: 13) {
+                SiteProviderIconTile(provider: account.provider, size: 48)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(account.provider.displayName)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(account.name)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
                 }
-            } else {
-                HStack(alignment: .top, spacing: 13) {
-                    serviceIdentity(account)
-                    Spacer(minLength: 8)
-                    AppStatusBadge(text: status.text, tone: status.tone)
-                }
+                Spacer(minLength: 8)
+                AppStatusBadge(text: status.text, tone: status.tone)
             }
 
             Text(account.provider.connectionSubtitle)
@@ -364,29 +355,12 @@ struct SitesView: View {
         .accessibilityHint("Open the selected \(account.provider.displayName) workspace")
     }
 
-    private func serviceIdentity(_ account: SiteIntegrationAccount) -> some View {
-        HStack(alignment: .top, spacing: 13) {
-            SiteProviderIconTile(provider: account.provider, size: 48)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(account.provider.displayName)
-                    .font(AppTheme.displayFont(.title3))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                Text(account.name)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-            }
-            .layoutPriority(1)
-        }
-    }
-
     private var addServiceCard: some View {
         HStack(spacing: 13) {
             AppIconTile(icon: "plus", tint: AppTheme.textSecondary, size: 42)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Add a site service")
-                    .font(AppTheme.displayFont(.headline))
+                    .font(.headline)
                     .foregroundStyle(AppTheme.textPrimary)
                 Text("Connect another source of site intelligence")
                     .font(.footnote)
@@ -412,7 +386,7 @@ struct SitesView: View {
                 SiteProviderIconTile(provider: resource.provider, size: 42)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(resource.name)
-                        .font(AppTheme.displayFont(.headline))
+                        .font(.headline)
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text(resource.status ?? resource.subtitle ?? "Connected")
@@ -450,11 +424,11 @@ struct SitesView: View {
     private func compactMetric(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(AppTheme.displayFont(.headline).monospacedDigit())
+                .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
             Text(label.uppercased())
-                .font(AppTheme.displayFont(.caption2))
+                .font(.caption2.weight(.semibold))
                 .tracking(0.4)
                 .foregroundStyle(AppTheme.textTertiary)
                 .lineLimit(1)
@@ -566,11 +540,11 @@ private struct SiteProviderIconTile: View {
     var body: some View {
         SiteProviderMark(provider: provider, size: size * 0.52)
             .frame(width: size, height: size)
-            .background(AppTheme.signalForeground)
+            .background(provider.accentColor.opacity(0.105))
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
+                    .strokeBorder(provider.accentColor.opacity(0.12), lineWidth: 0.5)
             }
             .accessibilityHidden(true)
     }

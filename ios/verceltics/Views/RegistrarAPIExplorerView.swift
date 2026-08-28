@@ -174,8 +174,8 @@ struct RegistrarAPIExplorerView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 50)
-                .foregroundStyle(canSend ? AppTheme.signalForeground : AppTheme.textTertiary)
-                .background(canSend ? AppTheme.signalFill : AppTheme.surfaceRaised)
+                .foregroundStyle(canSend ? Color.white : AppTheme.textTertiary)
+                .background(canSend ? AppTheme.signal : AppTheme.surfaceRaised)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
             }
             .buttonStyle(PressScaleButtonStyle())

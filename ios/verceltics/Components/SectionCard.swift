@@ -8,9 +8,9 @@ struct SectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title.uppercased())
-                .font(AppTheme.displayFont(.caption))
-                .foregroundStyle(AppTheme.textPrimary)
-                .tracking(0.9)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .tracking(1.1)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
 

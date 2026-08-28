@@ -305,7 +305,7 @@ private fun BuildPassport(state: AboutScreenState) {
                 Box(
                     modifier = Modifier
                         .size(52.dp)
-                        .background(MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(3.dp)),
+                        .background(MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -425,7 +425,7 @@ private fun AppearanceChoice(
                 role = Role.RadioButton
                 selected = isSelected
             },
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(13.dp),
         color = if (isSelected) colors.primary else colors.surfaceVariant,
         contentColor = if (isSelected) colors.onPrimary else colors.onSurfaceVariant,
         border = BorderStroke(if (isSelected) 2.dp else 1.dp, colors.outline),
@@ -644,7 +644,7 @@ private fun AboutIconTile(
             .size(38.dp)
             .background(
                 color = tint.copy(alpha = 0.14f),
-                shape = RoundedCornerShape(4.dp),
+                shape = RoundedCornerShape(13.dp),
             ),
         contentAlignment = Alignment.Center,
     ) {

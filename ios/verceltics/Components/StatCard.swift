@@ -31,13 +31,13 @@ struct StatCard: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppTheme.textTertiary)
                 Text(title.uppercased())
-                    .font(AppTheme.displayFont(.caption2))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppTheme.textSecondary)
                     .tracking(0.8)
             }
 
             Text(value)
-                .font(AppTheme.displayFont(.title).monospacedDigit())
+                .font(.title2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(AppTheme.textPrimary)
                 .contentTransition(.numericText())
                 .minimumScaleFactor(0.7)
@@ -54,11 +54,8 @@ struct StatCard: View {
                 .padding(.horizontal, 7)
                 .padding(.vertical, 4)
                 .background(changeColor.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(changeColor, lineWidth: 1)
-                }
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(changeColor.opacity(0.18), lineWidth: 0.5))
             } else {
                 Text("—")
                     .font(.caption.weight(.semibold))

@@ -360,7 +360,7 @@ struct CloudflareStorageDashboardView: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search storage")
         .toolbar {
-            AppThemedToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     if !reduceMotion {
                         withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
@@ -929,10 +929,10 @@ struct CloudflareStorageCreateScaffold<Content: View>: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            AppThemedToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }.foregroundStyle(AppTheme.textSecondary)
             }
-            AppThemedToolbarItem(placement: .confirmationAction) {
+            ToolbarItem(placement: .confirmationAction) {
                 Button(actionTitle, action: confirm)
                     .fontWeight(.bold)
                     .foregroundStyle(CloudflareStyle.orange)

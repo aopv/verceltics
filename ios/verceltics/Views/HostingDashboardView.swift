@@ -91,12 +91,12 @@ struct HostingDashboardView: View {
 
     @State private var viewModel: HostingDashboardViewModel
     @State private var searchText = ""
+    @State private var isSearching = false
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<HostingProRoute>()
     @State private var navigationRoute: HostingProRoute?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(AuthManager.self) private var authManager
     @Environment(PaywallManager.self) private var paywallManager
 
@@ -139,29 +139,36 @@ struct HostingDashboardView: View {
             }
             .navigationTitle(provider.displayName)
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search \(provider.displayName)")
             .toolbar {
-                AppThemedToolbarItem(placement: .topBarLeading) { ProviderAccountMenu() }
-                AppThemedToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) { ProviderAccountMenu() }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         if !reduceMotion {
                             withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
                         }
                         Task { await viewModel.load(refresh: true) }
                     } label: {
-                        AppToolbarActionLabel(
-                            systemImage: "arrow.clockwise",
-                            rotation: refreshSpin,
-                            isBusy: viewModel.isRefreshing
-                        )
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing \(provider.displayName)" : "Refresh \(provider.displayName)")
-                    .accessibilityIdentifier("topbar.refresh.hosting")
                 }
             }
             .task { await viewModel.load() }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
                 Task { await viewModel.load() }
+            }
+            .onAppear {
+                if startWithSearch {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { isSearching = true }
+                }
+            }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
             }
             .navigationDestination(item: $navigationRoute) { route in
                 destination(for: route)
@@ -174,76 +181,63 @@ struct HostingDashboardView: View {
     }
 
     private var content: some View {
-        VStack(spacing: 0) {
-            AppGlassSearchField(
-                text: $searchText,
-                prompt: "Search \(provider.displayName)",
-                startsFocused: startWithSearch,
-                focusRequestID: searchRequestID
-            )
-            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-            .padding(.top, 16)
-            .padding(.bottom, 14)
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                accountCard
 
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    accountCard
+                if let error = authManager.error {
+                    AppFeedbackBanner(
+                        title: "Saved account change failed",
+                        message: error,
+                        icon: "lock.trianglebadge.exclamationmark.fill",
+                        tint: AppTheme.danger
+                    )
+                }
 
-                    if let error = authManager.error {
-                        AppFeedbackBanner(
-                            title: "Saved account change failed",
-                            message: error,
-                            icon: "lock.trianglebadge.exclamationmark.fill",
-                            tint: AppTheme.danger
-                        )
+                if let error = viewModel.error {
+                    AppFeedbackBanner(
+                        title: "Couldn’t refresh \(provider.displayName)",
+                        message: error,
+                        actionTitle: "Try again"
+                    ) {
+                        Task { await viewModel.load(refresh: true) }
                     }
+                }
 
-                    if let error = viewModel.error {
-                        AppFeedbackBanner(
-                            title: "Couldn’t refresh \(provider.displayName)",
-                            message: error,
-                            actionTitle: "Try again"
-                        ) {
-                            Task { await viewModel.load(refresh: true) }
-                        }
-                    }
+                actionGrid
 
-                    actionGrid
+                AppSectionHeader(title: resourceTitle, count: filteredResources.count, accent: provider.accentColor)
 
-                    AppSectionHeader(title: resourceTitle, count: filteredResources.count, accent: provider.accentColor)
-
-                    if filteredResources.isEmpty {
-                        AppEmptyState(
-                            icon: searchText.isEmpty ? provider.systemImage : "magnifyingglass",
-                            title: searchText.isEmpty ? "No resources returned" : "No matching resources",
-                            message: searchText.isEmpty
-                                ? "This provider did not return any \(resourceTitle.lowercased()) for the connected account."
-                                : "Nothing matches “\(searchText)”."
-                        )
-                        .frame(maxWidth: .infinity)
-                        .appSurface()
-                    } else {
-                        LazyVGrid(columns: resourceColumns, spacing: 14) {
-                            ForEach(filteredResources) { resource in
-                                Button {
-                                    request(.resource(resource.id))
-                                } label: {
-                                    resourceRow(resource)
-                                }
-                                .buttonStyle(PressScaleButtonStyle())
+                if filteredResources.isEmpty {
+                    AppEmptyState(
+                        icon: searchText.isEmpty ? provider.systemImage : "magnifyingglass",
+                        title: searchText.isEmpty ? "No resources returned" : "No matching resources",
+                        message: searchText.isEmpty
+                            ? "This provider did not return any \(resourceTitle.lowercased()) for the connected account."
+                            : "Nothing matches “\(searchText)”."
+                    )
+                    .frame(maxWidth: .infinity)
+                    .appSurface()
+                } else {
+                    LazyVGrid(columns: resourceColumns, spacing: 14) {
+                        ForEach(filteredResources) { resource in
+                            Button {
+                                request(.resource(resource.id))
+                            } label: {
+                                resourceRow(resource)
                             }
+                            .buttonStyle(PressScaleButtonStyle())
                         }
                     }
                 }
-                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-                .padding(.top, 4)
-                .padding(.bottom, 24)
-                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+
             }
-            .refreshable { await viewModel.load(refresh: true) }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 18)
+            .padding(.bottom, 24)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
+        .refreshable { await viewModel.load(refresh: true) }
     }
 
     private var resourceColumns: [GridItem] {
@@ -256,27 +250,10 @@ struct HostingDashboardView: View {
     }
 
     private var accountCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if dynamicTypeSize.isAccessibilitySize {
-                accountIdentity
-                AppStatusBadge(text: "Connected", tone: .success)
-            } else {
-                HStack(spacing: 14) {
-                    accountIdentity
-                    Spacer()
-                    AppStatusBadge(text: "Connected", tone: .success)
-                }
-            }
-        }
-        .padding(18)
-        .providerSurface(accent: provider.accentColor)
-    }
-
-    private var accountIdentity: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                    .fill(provider == .vercel ? AppTheme.surface : AppTheme.signalForeground)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(provider.accentColor.opacity(0.15))
                 if let avatar = account.avatarURL, let url = URL(string: avatar) {
                     AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
                         ProviderMark(provider: provider, size: 28)
@@ -286,38 +263,36 @@ struct HostingDashboardView: View {
                 }
             }
             .frame(width: 56, height: 56)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
-            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
-                    .font(AppTheme.displayFont(.title3))
+                    .font(.headline)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .lineLimit(1)
                 Text(account.email ?? provider.connectionSubtitle)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .lineLimit(1)
             }
-            .layoutPriority(1)
+            Spacer()
+            AppStatusBadge(text: "Connected", tone: .success)
         }
+        .padding(18)
+        .providerSurface(accent: provider.accentColor)
     }
 
     private var actionGrid: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 10) {
-                    dashboardButton(route: .providerDashboard, icon: "safari.fill", title: "Dashboard")
-                    dashboardButton(route: .completeAPI, icon: "list.bullet.rectangle.fill", title: "Complete API")
-                }
-            } else {
-                HStack(spacing: 10) {
-                    dashboardButton(route: .providerDashboard, icon: "safari.fill", title: "Dashboard")
-                    dashboardButton(route: .completeAPI, icon: "list.bullet.rectangle.fill", title: "Complete API")
-                }
+        HStack(spacing: 10) {
+            Button {
+                request(.providerDashboard)
+            } label: {
+                dashboardAction(icon: "safari.fill", title: "Dashboard")
+            }
+            Button {
+                request(.completeAPI)
+            } label: {
+                dashboardAction(icon: "list.bullet.rectangle.fill", title: "Complete API")
             }
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -325,23 +300,14 @@ struct HostingDashboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func dashboardButton(route: HostingProRoute, icon: String, title: String) -> some View {
-        Button {
-            request(route)
-        } label: {
-            dashboardAction(icon: icon, title: title)
-        }
-    }
-
     private func dashboardAction(icon: String, title: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .foregroundStyle(provider.accentColor)
-            Text(title).font(AppTheme.displayFont(.subheadline))
+            Text(title).font(.subheadline.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 48)
-        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+        .frame(height: 48)
         .appSurface(raised: true)
     }
 
@@ -392,10 +358,15 @@ struct HostingDashboardView: View {
 
     private func resourceRow(_ resource: HostingResource) -> some View {
         HStack(spacing: 13) {
-            AppIconTile(icon: resourceIcon(resource), tint: provider.accentColor, size: 40)
+            Image(systemName: resourceIcon(resource))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(provider.accentColor)
+                .frame(width: 40, height: 40)
+                .background(provider.accentColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(resource.name)
-                    .font(.subheadline.weight(.bold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(2)
                 Text([resource.kind, resource.region, resource.subtitle].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))

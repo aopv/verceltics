@@ -581,7 +581,7 @@ private fun SearchConsoleConnectionPanel(
                                 .testTag("searchConsole.configurationNeeded"),
                             color = SearchConsoleWarning.copy(alpha = 0.22f)
                                 .compositeOver(MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(13.dp),
                             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
                         ) {
                             Row(
@@ -1214,7 +1214,7 @@ private fun <T> ChoiceGrid(
                                 role = Role.RadioButton
                                 this.selected = isSelected
                             },
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(13.dp),
                         color = if (isSelected) SearchConsoleAccent else MaterialTheme.colorScheme.surface,
                         contentColor = when {
                             !isEnabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -1237,7 +1237,7 @@ private fun <T> ChoiceGrid(
 @Composable
 private fun FilterSummaryRow(filter: SearchConsoleFilterUi, onRemove: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(13.dp),
         color = SearchConsoleAccent.copy(alpha = 0.12f).compositeOver(MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, SearchConsoleAccent),
     ) {
@@ -1645,7 +1645,7 @@ private fun DetailSectionTab(
                 this.selected = selected
             }
             .testTag("searchConsole.section.${section.name.lowercase()}"),
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(13.dp),
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
@@ -1973,7 +1973,7 @@ private fun SitemapCard(sitemap: SearchConsoleSitemapUi) {
                     Surface(
                         color = SearchConsoleAccent.copy(alpha = 0.08f)
                             .compositeOver(MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(3.dp),
+                        shape = RoundedCornerShape(10.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     ) {
                         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -2071,7 +2071,7 @@ private fun InspectionAreaCard(
                     Surface(
                         color = SearchConsoleWarning.copy(alpha = 0.12f)
                             .compositeOver(MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(3.dp),
+                        shape = RoundedCornerShape(10.dp),
                         border = BorderStroke(1.dp, SearchConsoleWarning),
                     ) {
                         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -2259,7 +2259,7 @@ private fun LoadingPanel(message: String) {
 private fun IconTile(icon: ImageVector, tint: Color, size: Int = 46) {
     Surface(
         modifier = Modifier.size(size.dp),
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         color = tint.copy(alpha = 0.15f).compositeOver(MaterialTheme.colorScheme.surface),
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(1.25.dp, tint),

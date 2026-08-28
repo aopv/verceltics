@@ -18,10 +18,10 @@ import androidx.core.view.WindowCompat
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutAppearance
 
 private val LightColors = lightColorScheme(
-    primary = LightSignalFill,
-    onPrimary = SignalForeground,
-    primaryContainer = LightNavigationAccent,
-    onPrimaryContainer = LightSurface,
+    primary = LightSignal,
+    onPrimary = LightOnSignal,
+    primaryContainer = LightSignal.copy(alpha = 0.12f),
+    onPrimaryContainer = LightSignal,
     secondary = LightTextPrimary,
     onSecondary = LightSurface,
     secondaryContainer = LightSurface,
@@ -34,41 +34,41 @@ private val LightColors = lightColorScheme(
     onSurface = LightTextPrimary,
     surfaceVariant = LightRaised,
     onSurfaceVariant = LightTextSecondary,
-    outline = Color.Black.copy(alpha = 0.94f),
-    outlineVariant = Color.Black.copy(alpha = 0.25f),
+    outline = Color.Black.copy(alpha = 0.095f),
+    outlineVariant = Color.Black.copy(alpha = 0.06f),
     error = LightDanger,
     onError = LightSurface,
 )
 
 private val DarkColors = darkColorScheme(
     primary = DarkSignal,
-    onPrimary = SignalForeground,
-    primaryContainer = DarkSignal.copy(alpha = 0.38f),
+    onPrimary = DarkOnSignal,
+    primaryContainer = DarkSignal.copy(alpha = 0.15f),
     onPrimaryContainer = DarkTextPrimary,
     secondary = DarkTextPrimary,
-    onSecondary = SignalForeground,
+    onSecondary = DarkCanvas,
     secondaryContainer = DarkRaised,
     onSecondaryContainer = DarkTextPrimary,
     tertiary = DarkSuccess,
-    onTertiary = SignalForeground,
+    onTertiary = DarkCanvas,
     background = DarkCanvas,
     onBackground = DarkTextPrimary,
     surface = DarkSurface,
     onSurface = DarkTextPrimary,
     surfaceVariant = DarkRaised,
     onSurfaceVariant = DarkTextSecondary,
-    outline = DarkTextPrimary.copy(alpha = 0.42f),
-    outlineVariant = DarkTextPrimary.copy(alpha = 0.22f),
+    outline = Color.White.copy(alpha = 0.10f),
+    outlineVariant = Color.White.copy(alpha = 0.055f),
     error = DarkDanger,
-    onError = SignalForeground,
+    onError = DarkCanvas,
 )
 
 private val VercelticsShapes = Shapes(
-    extraSmall = RoundedCornerShape(3.dp),
-    small = RoundedCornerShape(4.dp),
-    medium = RoundedCornerShape(4.dp),
-    large = RoundedCornerShape(19.dp),
-    extraLarge = RoundedCornerShape(24.dp),
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(13.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(26.dp),
 )
 
 /** The resolved app appearance, including an explicit in-app Light or Dark override. */

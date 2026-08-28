@@ -127,13 +127,15 @@ struct PaywallView: View {
                 }
             }
             .toolbar {
-                AppThemedToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(AppTheme.textPrimary)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 36, height: 36)
+                            .background(AppTheme.surfaceRaised, in: Circle())
                     }
+                    .buttonStyle(PressScaleButtonStyle())
                     .disabled(isPurchasing || isRestoring)
                     .accessibilityLabel("Close")
                     .accessibilityHint(
@@ -425,8 +427,8 @@ struct PaywallView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 54)
-                .background(selectedPackage != nil ? AppTheme.signalFill : AppTheme.surfaceRaised)
-                .foregroundStyle(selectedPackage != nil ? AppTheme.signalForeground : AppTheme.textTertiary)
+                .background(selectedPackage != nil ? AppTheme.signal : AppTheme.surfaceRaised)
+                .foregroundStyle(selectedPackage != nil ? AppTheme.canvas : AppTheme.textTertiary)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -520,7 +522,7 @@ private struct ProAccessScope: View {
         .appSurface()
         .overlay(alignment: .leading) {
             Capsule()
-                .fill(AppTheme.signalFill)
+                .fill(AppTheme.signal)
                 .frame(width: 2)
                 .padding(.vertical, 18)
                 .padding(.leading, 1)
@@ -583,7 +585,7 @@ private struct ProAccessScopeRow: View {
                 .contentTransition(.numericText())
 
             Circle()
-                .fill(AppTheme.signalFill)
+                .fill(AppTheme.signal)
                 .frame(width: 6, height: 6)
                 .scaleEffect(isRevealed ? 1 : 0.01)
                 .opacity(isRevealed ? 1 : 0)
@@ -671,7 +673,7 @@ struct PlanCard: View {
             }
             .overlay(alignment: .leading) {
                 Capsule()
-                    .fill(AppTheme.signalFill)
+                    .fill(AppTheme.signal)
                     .frame(width: 3)
                     .padding(.vertical, 13)
                     .padding(.leading, 1)

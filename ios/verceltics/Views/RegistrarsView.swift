@@ -98,31 +98,31 @@ struct RegistrarsView: View {
                 NavigationStack {
                     ZStack {
                         AppTheme.canvas.ignoresSafeArea()
-                        AppAdaptiveEmptyStateContainer {
-                            VStack(spacing: 12) {
-                                if let error = store.error {
-                                    AppFeedbackBanner(
-                                        title: "Saved registrar accounts need attention",
-                                        message: error,
-                                        icon: "lock.trianglebadge.exclamationmark.fill",
-                                        tint: AppTheme.danger
-                                    )
-                                }
-                                AppEmptyState(
-                                    icon: "globe.americas.fill",
-                                    title: "No registrar account",
-                                    message: "Connect a registrar to track expiry, renewal, privacy, locks, and nameservers.",
-                                    actionTitle: "Connect registrar"
-                                ) {
-                                    showConnection = true
-                                }
+                        VStack(spacing: 12) {
+                            if let error = store.error {
+                                AppFeedbackBanner(
+                                    title: "Saved registrar accounts need attention",
+                                    message: error,
+                                    icon: "lock.trianglebadge.exclamationmark.fill",
+                                    tint: AppTheme.danger
+                                )
+                            }
+                            AppEmptyState(
+                                icon: "globe.americas.fill",
+                                title: "No registrar account",
+                                message: "Connect a registrar to track expiry, renewal, privacy, locks, and nameservers.",
+                                actionTitle: "Connect registrar"
+                            ) {
+                                showConnection = true
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .frame(maxWidth: 560)
                     }
                     .navigationTitle("Registrars")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        AppThemedToolbarItem(placement: .topBarLeading) {
+                        ToolbarItem(placement: .topBarLeading) {
                             RegistrarAccountMenu()
                         }
                     }
@@ -150,12 +150,12 @@ struct RegistrarDashboardView: View {
     var backgroundRefreshRequestID = 0
     @State private var viewModel: RegistrarDashboardViewModel
     @State private var searchText = ""
+    @State private var isSearching = false
     @State private var refreshSpin = 0.0
     @State private var proGate = ProAccessGate<RegistrarProRoute>()
     @State private var navigationRoute: RegistrarProRoute?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(RegistrarStore.self) private var store
     @Environment(PaywallManager.self) private var paywallManager
 
@@ -197,29 +197,34 @@ struct RegistrarDashboardView: View {
             }
             .navigationTitle("Registrars")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search domains")
             .toolbar {
-                AppThemedToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
-                AppThemedToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         if !reduceMotion {
                             withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
                         }
                         Task { await viewModel.load(refresh: true) }
                     } label: {
-                        AppToolbarActionLabel(
-                            systemImage: "arrow.clockwise",
-                            rotation: refreshSpin,
-                            isBusy: viewModel.isRefreshing
-                        )
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing domains" : "Refresh domains")
-                    .accessibilityIdentifier("topbar.refresh.registrars")
                 }
             }
             .task { await viewModel.load() }
             .onChange(of: backgroundRefreshRequestID) { _, _ in
                 Task { await viewModel.load() }
+            }
+            .onAppear {
+                if startWithSearch { isSearching = true }
+            }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
             }
             .navigationDestination(item: $navigationRoute) { route in
                 destination(for: route)
@@ -232,74 +237,60 @@ struct RegistrarDashboardView: View {
     }
 
     private var dashboard: some View {
-        VStack(spacing: 0) {
-            AppGlassSearchField(
-                text: $searchText,
-                prompt: "Search domains",
-                startsFocused: startWithSearch,
-                focusRequestID: searchRequestID
-            )
-            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-            .padding(.top, 16)
-            .padding(.bottom, 14)
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                portfolioHeader
 
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    portfolioHeader
+                if let error = store.error {
+                    AppFeedbackBanner(
+                        title: "Saved registrar change failed",
+                        message: error,
+                        icon: "lock.trianglebadge.exclamationmark.fill",
+                        tint: AppTheme.danger
+                    )
+                }
+                stats
+                actions
 
-                    if let error = store.error {
-                        AppFeedbackBanner(
-                            title: "Saved registrar change failed",
-                            message: error,
-                            icon: "lock.trianglebadge.exclamationmark.fill",
-                            tint: AppTheme.danger
-                        )
+                if let error = viewModel.error {
+                    AppFeedbackBanner(
+                        title: "Couldn’t refresh domains",
+                        message: error,
+                        actionTitle: "Try again"
+                    ) {
+                        Task { await viewModel.load(refresh: true) }
                     }
-                    stats
-                    actions
+                }
 
-                    if let error = viewModel.error {
-                        AppFeedbackBanner(
-                            title: "Couldn’t refresh domains",
-                            message: error,
-                            actionTitle: "Try again"
-                        ) {
-                            Task { await viewModel.load(refresh: true) }
-                        }
-                    }
+                AppSectionHeader(title: "Domain portfolio", count: filteredDomains.count, accent: provider.accentColor)
 
-                    AppSectionHeader(title: "Domain portfolio", count: filteredDomains.count, accent: provider.accentColor)
-
-                    if filteredDomains.isEmpty {
-                        AppEmptyState(
-                            icon: searchText.isEmpty ? "globe" : "magnifyingglass",
-                            title: searchText.isEmpty ? "No domains returned" : "No matching domains",
-                            message: searchText.isEmpty
-                                ? "This registrar did not return any domains for the connected account."
-                                : "Nothing matches “\(searchText)”."
-                        )
-                        .frame(maxWidth: .infinity)
-                        .appSurface()
-                    } else {
-                        LazyVGrid(columns: domainColumns, spacing: 14) {
-                            ForEach(filteredDomains) { domain in
-                                Button {
-                                    request(.domain(domain.id))
-                                } label: { domainRow(domain) }
-                                .buttonStyle(PressScaleButtonStyle())
-                            }
+                if filteredDomains.isEmpty {
+                    AppEmptyState(
+                        icon: searchText.isEmpty ? "globe" : "magnifyingglass",
+                        title: searchText.isEmpty ? "No domains returned" : "No matching domains",
+                        message: searchText.isEmpty
+                            ? "This registrar did not return any domains for the connected account."
+                            : "Nothing matches “\(searchText)”."
+                    )
+                    .frame(maxWidth: .infinity)
+                    .appSurface()
+                } else {
+                    LazyVGrid(columns: domainColumns, spacing: 14) {
+                        ForEach(filteredDomains) { domain in
+                            Button {
+                                request(.domain(domain.id))
+                            } label: { domainRow(domain) }
+                            .buttonStyle(PressScaleButtonStyle())
                         }
                     }
                 }
-                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-                .padding(.top, 4)
-                .padding(.bottom, 24)
-                .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
-            .refreshable { await viewModel.load(refresh: true) }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 18)
+            .padding(.bottom, 24)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
+        .refreshable { await viewModel.load(refresh: true) }
     }
 
     private var domainColumns: [GridItem] {
@@ -313,28 +304,31 @@ struct RegistrarDashboardView: View {
 
     private var portfolioHeader: some View {
         VStack(alignment: .leading, spacing: 17) {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 12) {
-                    portfolioIdentity
-                    AppStatusBadge(text: "Connected", tone: .success)
+            HStack(spacing: 13) {
+                RegistrarMark(provider: provider, size: 55)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(account.name)
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(provider.apiDescription)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
                 }
-            } else {
-                HStack(spacing: 13) {
-                    portfolioIdentity
-                    Spacer()
-                    AppStatusBadge(text: "Connected", tone: .success)
-                }
+                Spacer()
+                AppStatusBadge(text: "Connected", tone: .success)
             }
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     Text("EXPIRY HEALTH")
-                        .font(AppTheme.displayFont(.caption2))
+                        .font(.caption2.weight(.semibold))
                         .tracking(1)
                         .foregroundStyle(AppTheme.textSecondary)
                     Spacer()
                     Text(expiryHealthLabel)
-                        .font(.caption.weight(.bold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(expiryHealthColor)
                 }
                 GeometryReader { geometry in
@@ -352,23 +346,6 @@ struct RegistrarDashboardView: View {
         .providerSurface(accent: provider.accentColor)
     }
 
-    private var portfolioIdentity: some View {
-        HStack(spacing: 13) {
-            RegistrarMark(provider: provider, size: 55)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(account.name)
-                    .font(AppTheme.displayFont(.title3))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                Text(provider.apiDescription)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            }
-            .layoutPriority(1)
-        }
-    }
-
     private var stats: some View {
         LazyVGrid(
             columns: statColumns,
@@ -381,9 +358,6 @@ struct RegistrarDashboardView: View {
     }
 
     private var statColumns: [GridItem] {
-        if dynamicTypeSize.isAccessibilitySize {
-            return [GridItem(.flexible())]
-        }
         if horizontalSizeClass == .regular {
             return Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
         }
@@ -392,13 +366,9 @@ struct RegistrarDashboardView: View {
 
     private func statCard(_ title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            AppIconTile(icon: icon, tint: provider.accentColor, size: 28)
-            Text(value).font(AppTheme.displayFont(.title2).monospacedDigit())
-            Text(title.uppercased())
-                .font(AppTheme.displayFont(.caption2))
-                .tracking(0.6)
-                .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            Image(systemName: icon).font(.caption.weight(.semibold)).foregroundStyle(provider.accentColor)
+            Text(value).font(.title3.weight(.semibold).monospacedDigit())
+            Text(title.uppercased()).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
@@ -406,43 +376,24 @@ struct RegistrarDashboardView: View {
     }
 
     private var actions: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 10) {
-                    registrarActionButton(route: .providerDashboard, title: "Dashboard", icon: "safari.fill")
-                    registrarActionButton(route: .completeAPI, title: "Complete API", icon: "list.bullet.rectangle.fill")
-                }
-            } else {
-                HStack(spacing: 10) {
-                    registrarActionButton(route: .providerDashboard, title: "Dashboard", icon: "safari.fill")
-                    registrarActionButton(route: .completeAPI, title: "Complete API", icon: "list.bullet.rectangle.fill")
-                }
-            }
+        HStack(spacing: 10) {
+            Button {
+                request(.providerDashboard)
+            } label: { actionLabel("Dashboard", icon: "safari.fill") }
+            Button {
+                request(.completeAPI)
+            } label: { actionLabel("Complete API", icon: "list.bullet.rectangle.fill") }
         }
         .buttonStyle(PressScaleButtonStyle())
         .frame(maxWidth: horizontalSizeClass == .regular ? 470 : .infinity, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func registrarActionButton(
-        route: RegistrarProRoute,
-        title: String,
-        icon: String
-    ) -> some View {
-        Button {
-            request(route)
-        } label: {
-            actionLabel(title, icon: icon)
-        }
-    }
-
     private func actionLabel(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon)
-            .font(AppTheme.displayFont(.subheadline))
+            .font(.system(size: 12, weight: .bold))
             .foregroundStyle(AppTheme.textPrimary)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 47)
-            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+            .frame(maxWidth: .infinity).frame(height: 47)
             .appSurface(raised: true)
     }
 
@@ -495,20 +446,16 @@ struct RegistrarDashboardView: View {
         HStack(spacing: 13) {
             VStack(spacing: 1) {
                 Text(expiryValue(domain))
-                    .font(AppTheme.displayFont(.headline).monospacedDigit())
-                Text(expiryUnit(domain)).font(AppTheme.displayFont(.caption2)).tracking(0.5)
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                Text(expiryUnit(domain)).font(.caption2.weight(.semibold)).tracking(0.5)
             }
             .foregroundStyle(expiryColor(domain))
             .frame(width: 42, height: 42)
-            .background(AppTheme.signalForeground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                    .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.25)
-            }
+            .background(expiryColor(domain).opacity(0.11))
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(domain.name).font(.subheadline.weight(.bold)).foregroundStyle(AppTheme.textPrimary).lineLimit(2)
+                Text(domain.name).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.textPrimary).lineLimit(2)
                 HStack(spacing: 7) {
                     if domain.autoRenew == true { Label("Auto", systemImage: "arrow.triangle.2.circlepath") }
                     if domain.locked == true { Label("Locked", systemImage: "lock.fill") }

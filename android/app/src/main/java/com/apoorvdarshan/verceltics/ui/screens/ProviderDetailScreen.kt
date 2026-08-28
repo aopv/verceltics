@@ -647,7 +647,7 @@ private fun ConnectedVercelContent(
                 .fillMaxWidth()
                 .background(
                     MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
-                    RoundedCornerShape(4.dp),
+                    RoundedCornerShape(13.dp),
                 )
                 .padding(12.dp),
             color = MaterialTheme.colorScheme.onSurface,
@@ -721,7 +721,7 @@ private fun VercelProjectRow(project: VercelProjectUi) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(13.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -762,7 +762,7 @@ private fun ErrorNotice(message: String) {
         modifier = Modifier
             .fillMaxWidth()
             .semantics { liveRegion = LiveRegionMode.Assertive }
-            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f), RoundedCornerShape(13.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.Top,
     ) {

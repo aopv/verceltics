@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,7 +35,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -60,11 +58,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
-import com.apoorvdarshan.verceltics.ui.theme.LocalVercelticsDarkTheme
 
-private val PanelShape = RoundedCornerShape(4.dp)
+private val PanelShape = RoundedCornerShape(16.dp)
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun OffsetPanel(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.surface,
@@ -76,50 +74,31 @@ fun OffsetPanel(
     testTag: String? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val isDark = LocalVercelticsDarkTheme.current
-    val resolvedShadowOffset = shadowOffset ?: if (isDark) 2.dp else 4.dp
-    val borderWidth = if (isDark) 1.dp else 2.dp
-    Box(
-        modifier = modifier.padding(
-            end = resolvedShadowOffset,
-            bottom = resolvedShadowOffset,
-        ),
-        propagateMinConstraints = true,
-    ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(resolvedShadowOffset, resolvedShadowOffset)
-                .clip(shape)
-                .background(shadowColor),
-        )
-        val surfaceModifier = Modifier
-            .fillMaxSize()
-            .then(if (testTag == null) Modifier else Modifier.testTag(testTag))
+    val surfaceModifier = modifier
+        .then(if (testTag == null) Modifier else Modifier.testTag(testTag))
 
-        if (onClick == null) {
-            Surface(
-                modifier = surfaceModifier,
-                shape = shape,
-                color = color,
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
-                border = BorderStroke(borderWidth, borderColor),
-                content = { Box(Modifier.fillMaxSize(), content = content) },
-            )
-        } else {
-            Surface(
-                onClick = onClick,
-                modifier = surfaceModifier,
-                shape = shape,
-                color = color,
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
-                border = BorderStroke(borderWidth, borderColor),
-                interactionSource = remember { MutableInteractionSource() },
-                content = { Box(Modifier.fillMaxSize(), content = content) },
-            )
-        }
+    if (onClick == null) {
+        Surface(
+            modifier = surfaceModifier,
+            shape = shape,
+            color = color,
+            tonalElevation = 0.dp,
+            shadowElevation = 5.dp,
+            border = BorderStroke(1.dp, borderColor),
+            content = { Box(Modifier.fillMaxSize(), content = content) },
+        )
+    } else {
+        Surface(
+            onClick = onClick,
+            modifier = surfaceModifier,
+            shape = shape,
+            color = color,
+            tonalElevation = 0.dp,
+            shadowElevation = 5.dp,
+            border = BorderStroke(1.dp, borderColor),
+            interactionSource = remember { MutableInteractionSource() },
+            content = { Box(Modifier.fillMaxSize(), content = content) },
+        )
     }
 }
 
@@ -134,7 +113,6 @@ fun ControlSearchField(
     onSearch: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
-    val isDark = LocalVercelticsDarkTheme.current
     val haptic = LocalHapticFeedback.current
     val textInteractionSource = remember { MutableInteractionSource() }
     LaunchedEffect(textInteractionSource) {
@@ -148,10 +126,11 @@ fun ControlSearchField(
         modifier = modifier
             .defaultMinSize(minHeight = 54.dp)
             .testTag("$testTag.container"),
-        color = colors.primary.copy(alpha = 0.08f).compositeOver(colors.surface),
+        color = colors.surface,
         shape = PanelShape,
         tonalElevation = 0.dp,
-        border = BorderStroke(if (isDark) 1.dp else 2.dp, colors.outline),
+        shadowElevation = 3.dp,
+        border = BorderStroke(1.dp, colors.outline),
     ) {
         BasicTextField(
             value = value,
@@ -212,13 +191,13 @@ fun ControlSearchField(
                             Box(
                                 modifier = Modifier
                                     .size(28.dp)
-                                    .background(colors.primary, RoundedCornerShape(3.dp)),
+                                    .background(colors.primary.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     Icons.Rounded.Clear,
                                     contentDescription = "Clear search",
-                                    tint = colors.onPrimary,
+                                    tint = colors.primary,
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
@@ -243,8 +222,8 @@ fun ProviderMark(
         modifier = modifier.size(size),
         color = accent,
         contentColor = foreground,
-        shape = RoundedCornerShape(3.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.18f)),
         tonalElevation = 0.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -269,8 +248,8 @@ fun ProviderMark(
         modifier = modifier.size(size),
         color = accent.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surface),
         contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(3.dp),
-        border = BorderStroke(1.25.dp, accent),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.20f)),
         tonalElevation = 0.dp,
     ) {
         Box(
@@ -286,9 +265,8 @@ fun ProviderMark(
 }
 
 /**
- * A compact, branded Material control that echoes the iOS Liquid Glass toolbar treatment.
- * Android owns the actual surface and touch feedback; Verceltics contributes the tint, outline,
- * offset depth, and orange status rail.
+ * A compact native Material control that mirrors the restored iOS glass hierarchy.
+ * Android owns the blur-like translucency, elevation, shape, and touch feedback.
  */
 @Composable
 fun ThemedGlassControl(
@@ -296,60 +274,33 @@ fun ThemedGlassControl(
     modifier: Modifier = Modifier,
     testTag: String? = null,
     enabled: Boolean = true,
-    shape: Shape = RoundedCornerShape(18.dp),
+    shape: Shape = RoundedCornerShape(20.dp),
     content: @Composable BoxScope.() -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val isDark = LocalVercelticsDarkTheme.current
-    val shadowOffset = if (isDark) 2.dp else 3.dp
     val interactionSource = remember { MutableInteractionSource() }
-    Box(modifier = modifier) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .then(if (testTag == null) Modifier else Modifier.testTag(testTag)),
+        shape = shape,
+        color = colors.surface.copy(alpha = 0.92f),
+        contentColor = colors.onSurface.copy(alpha = if (enabled) 1f else 0.38f),
+        border = BorderStroke(
+            1.dp,
+            colors.outline.copy(alpha = if (enabled) 1f else 0.34f),
+        ),
+        tonalElevation = 0.dp,
+        shadowElevation = 8.dp,
+        interactionSource = interactionSource,
+    ) {
         Box(
             modifier = Modifier
-                .matchParentSize()
-                .offset(shadowOffset, shadowOffset)
-                .clip(shape)
-                .background(
-                    colors.outline.copy(
-                        alpha = if (!enabled) 0.24f else if (isDark) 0.50f else 0.82f,
-                    ),
-                ),
-        )
-        Surface(
-            onClick = onClick,
-            enabled = enabled,
-            modifier = Modifier
                 .fillMaxSize()
-                .then(if (testTag == null) Modifier else Modifier.testTag(testTag)),
-            shape = shape,
-            color = colors.surface.copy(alpha = if (isDark) 0.86f else 0.90f),
-            contentColor = colors.onSurface.copy(alpha = if (enabled) 1f else 0.38f),
-            border = BorderStroke(
-                if (isDark) 1.25.dp else 1.5.dp,
-                colors.outline.copy(alpha = if (enabled) 1f else 0.34f),
-            ),
-            tonalElevation = 0.dp,
-            shadowElevation = 10.dp,
-            interactionSource = interactionSource,
+                .background(colors.primary.copy(alpha = if (enabled) 0.055f else 0.02f)),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(colors.primary.copy(alpha = if (enabled) 0.12f else 0.04f)),
-            ) {
-                content()
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 4.dp)
-                        .width(20.dp)
-                        .height(3.dp)
-                        .background(
-                            colors.primary.copy(alpha = if (enabled) 1f else 0.32f),
-                            RoundedCornerShape(50),
-                        ),
-                )
-            }
+            content()
         }
     }
 }
@@ -375,7 +326,7 @@ fun SectionHeading(
         Column(Modifier.weight(1f)) {
             Text(
                 text = eyebrow.uppercase(),
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 1.2.sp,
@@ -404,8 +355,8 @@ fun StatusPill(
         modifier = modifier,
         color = color.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surface),
         contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(1.25.dp, color),
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.20f)),
         tonalElevation = 0.dp,
     ) {
         Row(
@@ -435,7 +386,7 @@ fun LabelChip(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(9.dp),
         color = containerColor,
         contentColor = contentColor,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

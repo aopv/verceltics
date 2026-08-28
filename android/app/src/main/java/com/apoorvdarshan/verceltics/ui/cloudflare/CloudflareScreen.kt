@@ -760,7 +760,7 @@ private fun CloudflareMetric(value: String, label: String, modifier: Modifier = 
     Surface(
         modifier = modifier.heightIn(min = 78.dp),
         color = Color(0xFFFFA062),
-        shape = RoundedCornerShape(3.dp),
+        shape = RoundedCornerShape(10.dp),
         border = BorderStroke(2.dp, Color.Black),
         tonalElevation = 0.dp,
     ) {
@@ -824,7 +824,7 @@ private fun CloudflareAccountPicker(
                         if (isSelected) 2.dp else 1.dp,
                         if (isSelected) CloudflareAccent else MaterialTheme.colorScheme.outline,
                     ),
-                    shape = RoundedCornerShape(4.dp),
+                    shape = RoundedCornerShape(13.dp),
                     tonalElevation = 0.dp,
                 ) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -903,7 +903,7 @@ private fun CloudflareResourceRow(
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(3.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = Color.Black,
                 contentColor = CloudflareAccent,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -1120,7 +1120,7 @@ private fun CloudflareEphemeralTokenInput(
         Surface(
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             color = colors.primary.copy(alpha = 0.07f).compositeOver(colors.surface),
-            shape = RoundedCornerShape(4.dp),
+            shape = RoundedCornerShape(13.dp),
             border = BorderStroke(if (LocalVercelticsDarkTheme.current) 1.dp else 2.dp, colors.outline),
             tonalElevation = 0.dp,
         ) {

@@ -132,9 +132,9 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text(connectionCategory.sectionTitle)
-                        .font(AppTheme.displayFont(.caption))
-                        .tracking(1.0)
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .font(.caption2.weight(.semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .padding(.horizontal, 4)
 
                     switch connectionCategory {
@@ -182,29 +182,25 @@ struct LoginView: View {
         // while allowing the actual catalog content to scale without a cap.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel("Connection type")
-        .accessibilityIdentifier("connection.categoryPicker")
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {
+        let accent = provider.accentColor
         return Button {
             authManager.error = nil
             updateSelection { selectedProvider = provider }
         } label: {
             HStack(spacing: 13) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                        .fill(provider == .vercel ? AppTheme.surface : AppTheme.signalForeground)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(accent.opacity(0.14))
                     ProviderMark(provider: provider, size: 18)
                 }
                 .frame(width: 34, height: 34)
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 1)
-                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.headline.weight(.bold))
+                        .font(.headline)
                     Text(provider.connectionSubtitle)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
@@ -222,10 +218,7 @@ struct LoginView: View {
             .padding(.vertical, 8)
             .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
-            .liquidGlassSurface(
-                cornerRadius: AppTheme.panelRadius,
-                tint: provider.accentColor.opacity(0.10)
-            )
+            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
@@ -237,19 +230,15 @@ struct LoginView: View {
         } label: {
             HStack(spacing: 13) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                        .fill(AppTheme.signalForeground)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(provider.accentColor.opacity(0.14))
                     SiteProviderMark(provider: provider, size: 20)
                 }
                 .frame(width: 34, height: 34)
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
-                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 1)
-                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.headline.weight(.bold))
+                        .font(.headline)
                     Text(provider.connectionSubtitle)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
@@ -267,10 +256,7 @@ struct LoginView: View {
             .padding(.vertical, 8)
             .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
-            .liquidGlassSurface(
-                cornerRadius: AppTheme.panelRadius,
-                tint: provider.accentColor.opacity(0.10)
-            )
+            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
@@ -285,7 +271,7 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.headline.weight(.bold))
+                        .font(.headline)
                     Text(provider.apiDescription)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
@@ -303,10 +289,7 @@ struct LoginView: View {
             .padding(.vertical, 8)
             .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
-            .liquidGlassSurface(
-                cornerRadius: AppTheme.panelRadius,
-                tint: provider.accentColor.opacity(0.10)
-            )
+            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
@@ -410,8 +393,8 @@ struct LoginView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 54)
-                        .background(tokenInput.isEmpty ? AppTheme.surfaceRaised : AppTheme.signalFill)
-                        .foregroundStyle(tokenInput.isEmpty ? AppTheme.textTertiary : AppTheme.signalForeground)
+                        .background(tokenInput.isEmpty ? AppTheme.surfaceRaised : AppTheme.signal)
+                        .foregroundStyle(tokenInput.isEmpty ? AppTheme.textTertiary : .white)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -555,8 +538,8 @@ struct LoginView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 54)
-                            .background(canConnectCloudflare ? AppTheme.signalFill : AppTheme.surfaceRaised)
-                            .foregroundStyle(canConnectCloudflare ? AppTheme.signalForeground : AppTheme.textTertiary)
+                            .background(canConnectCloudflare ? AppTheme.signal : AppTheme.surfaceRaised)
+                            .foregroundStyle(canConnectCloudflare ? .white : AppTheme.textTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .buttonStyle(PressScaleButtonStyle())
@@ -641,16 +624,12 @@ struct LoginView: View {
 
             ProviderMark(provider: provider, size: 34)
                 .frame(width: 72, height: 72)
-                .background(provider == .vercel ? AppTheme.surface : AppTheme.signalForeground)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous)
-                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 1.5)
-                }
+                .background(provider.accentColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             VStack(spacing: 6) {
                 Text("Connect \(provider.displayName)")
-                    .font(.title2.weight(.black).width(.condensed))
+                    .font(.title2.weight(.semibold))
                 Text(provider == .cloudflare ? "Manage your Cloudflare edge" : "Analytics for your Vercel projects")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -672,23 +651,17 @@ struct LoginView: View {
 
 private struct LiquidGlassSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
-    let tint: Color
 
     func body(content: Content) -> some View {
-        content.nativeGlassSurface(
-            cornerRadius: cornerRadius,
-            isInteractive: true,
-            tint: tint
-        )
+        content.nativeGlassSurface(cornerRadius: cornerRadius)
     }
 }
 
 private extension View {
-    func liquidGlassSurface(cornerRadius: CGFloat, tint: Color) -> some View {
+    func liquidGlassSurface(cornerRadius: CGFloat) -> some View {
         modifier(
             LiquidGlassSurfaceModifier(
-                cornerRadius: cornerRadius,
-                tint: tint
+                cornerRadius: cornerRadius
             )
         )
     }

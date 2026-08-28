@@ -47,15 +47,18 @@ struct ProviderAccountMenu: View {
                 }
             }
         } label: {
-            AppToolbarMenuLabel {
+            HStack(spacing: 6) {
                 providerBadge(for: authManager.activeAccount)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
-            .accessibilityElement(children: .ignore)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
             .accessibilityLabel("Switch connected account")
             .accessibilityValue(authManager.activeAccount?.name ?? "No active account")
         }
-        .tint(AppTheme.navigationAccent)
-        .accessibilityIdentifier("topbar.account.hosting")
+        .tint(AppTheme.textPrimary)
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .hosting)
                 .presentationSizing(.page)
@@ -139,11 +142,11 @@ struct ProviderAccountMenu: View {
             .frame(width: 22, height: 22)
             .clipShape(Circle())
         } else if let provider = account?.provider {
-            ProviderMark(provider: provider, size: 23)
+            ProviderMark(provider: provider, size: 23, monochrome: true)
         } else {
             Image(systemName: "server.rack")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.navigationAccent)
+                .foregroundStyle(AppTheme.textPrimary)
         }
     }
 }

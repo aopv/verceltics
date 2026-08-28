@@ -174,10 +174,10 @@ struct CloudflareFullAPICatalogView: View {
                     Text(item.rawValue.uppercased())
                         .font(.caption.weight(.semibold))
                         .tracking(0.6)
-                        .foregroundStyle(filter == item ? AppTheme.signalForeground : AppTheme.textSecondary)
+                        .foregroundStyle(filter == item ? .white : AppTheme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 44)
-                        .background(filter == item ? AppTheme.signalFill : AppTheme.surfaceRaised)
+                        .background(filter == item ? AppTheme.signal : AppTheme.surfaceRaised)
                         .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -338,7 +338,7 @@ private struct CloudflareAPITagView: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search \(operations.count) operations")
         .toolbar {
-            AppThemedToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu(filter.rawValue) {
                     ForEach(CloudflareOperationFilter.allCases) { value in
                         Button(value.rawValue) { filter = value }

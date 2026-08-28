@@ -436,7 +436,7 @@ private fun AnalyticsMenu(
             onDismissRequest = { expanded = false },
             modifier = Modifier.widthIn(min = 220.dp, max = 320.dp),
             containerColor = MaterialTheme.colorScheme.surface,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(13.dp),
             tonalElevation = 0.dp,
             shadowElevation = 12.dp,
             border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
@@ -462,7 +462,7 @@ private fun AnalyticsMenu(
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                         )
                     },
                     leadingIcon = {

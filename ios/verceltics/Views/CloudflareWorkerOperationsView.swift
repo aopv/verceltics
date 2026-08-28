@@ -1166,7 +1166,7 @@ private func workerEditorShell<Content: View>(
             }
         }
         .toolbar {
-            AppThemedToolbarItem(placement: .confirmationAction) {
+            ToolbarItem(placement: .confirmationAction) {
                 Button("Save", action: save)
                     .fontWeight(.bold)
                     .disabled(!canSave)

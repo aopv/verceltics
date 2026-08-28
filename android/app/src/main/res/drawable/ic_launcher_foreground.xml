@@ -7,16 +7,16 @@
     android:viewportHeight="108">
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M20,31 L40,31 C50,31 56,36 63,44 C69,51 75,53 83,53 L88,53"
+        android:pathData="M25,36 L42,36 C50,36 56,39 62,45 C68,51 73,53 79,53 L83,53"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:strokeWidth="7">
         <aapt:attr name="android:strokeColor">
             <gradient
-                android:endX="88"
+                android:endX="83"
                 android:endY="53"
-                android:startX="20"
-                android:startY="31"
+                android:startX="25"
+                android:startY="36"
                 android:type="linear">
                 <item
                     android:color="#069FFF"
@@ -29,14 +29,14 @@
     </path>
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M20,53 L50,53"
+        android:pathData="M25,53 L51,53"
         android:strokeLineCap="round"
         android:strokeWidth="7">
         <aapt:attr name="android:strokeColor">
             <gradient
-                android:endX="50"
+                android:endX="51"
                 android:endY="53"
-                android:startX="20"
+                android:startX="25"
                 android:startY="53"
                 android:type="linear">
                 <item
@@ -53,16 +53,16 @@
     </path>
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M20,76 L42,76 C53,76 61,71 67,64"
+        android:pathData="M25,73 L44,73 C53,73 60,69 65,63"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:strokeWidth="7">
         <aapt:attr name="android:strokeColor">
             <gradient
-                android:endX="67"
-                android:endY="64"
-                android:startX="20"
-                android:startY="76"
+                android:endX="65"
+                android:endY="63"
+                android:startX="25"
+                android:startY="73"
                 android:type="linear">
                 <item
                     android:color="#9C42FF"
